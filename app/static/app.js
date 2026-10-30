@@ -29,3 +29,55 @@ document.addEventListener('DOMContentLoaded', () => {
     finally { button.disabled = false; }
   });
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('quick-search');
+  const suggestions = document.getElementById('search-suggestions');
+  if (!input || !suggestions) return;
+  let timer = null;
+  let controller = null;
+
+  function clear() {
+    suggestions.hidden = true;
+    suggestions.replaceChildren();
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    if (controller) controller.abort();
+    const query = input.value.trim();
+    if (query.length < 2) { clear(); return; }
+    timer = setTimeout(async () => {
+      controller = new AbortController();
+      try {
+        const response = await fetch('/api/search?q=' + encodeURIComponent(query), {
+          signal: controller.signal, cache: 'no-store'
+        });
+        if (!response.ok || input.value.trim() !== query) return;
+        const found = await response.json();
+        clear();
+        if (!found.length) return;
+        for (const item of found) {
+          const a = document.createElement('a');
+          a.className = 'search-result';
+          const id = Number(item.id);
+          if (!Number.isSafeInteger(id) || id <= 0) continue;
+          a.href = '/medicines/' + id;
+          const name = document.createElement('strong');
+          name.textContent = String(item.name);
+          const detail = document.createElement('small');
+          detail.textContent = 'Код ' + String(item.code) + ' · Ящик №' + String(item.drawer);
+          a.append(name, detail);
+          suggestions.append(a);
+        }
+        suggestions.hidden = !suggestions.childElementCount;
+      } catch (e) {
+        if (e.name !== 'AbortError') clear();
+      }
+    }, 200);
+  });
+  input.addEventListener('keydown', e => { if (e.key === 'Escape') clear(); });
+  document.addEventListener('click', e => {
+    if (!suggestions.contains(e.target) && e.target !== input) clear();
+  });
+});
