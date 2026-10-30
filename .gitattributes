@@ -6,3 +6,6 @@
 *.js text eol=lf
 *.css text eol=lf
 *.html text eol=lf
+
+# Keep PowerShell scripts readable by Windows PowerShell
+*.ps1 text eol=crlf
