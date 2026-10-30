@@ -1,5 +1,7 @@
 """First local MVP. Medical interaction checks are deliberately NOT simulated."""
 from contextlib import asynccontextmanager
+import os
+import secrets
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -10,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 from starlette.requests import Request
+from starlette.middleware.sessions import SessionMiddleware
 
 from .database import get_db, init_db
 from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem
@@ -26,9 +29,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title='PharmDesk — рабочее место фармацевта',
     description='Поиск по ящикам и локальному ассортименту. Не предназначено для медицинских решений.',
-    version='0.1.0',
+    version='0.2.0',
     lifespan=lifespan,
 )
+app.add_middleware(SessionMiddleware, secret_key=os.getenv('PHARMDESK_SESSION_SECRET') or secrets.token_urlsafe(32), same_site='strict', https_only=False)
 app.mount('/static', StaticFiles(directory=HERE / 'static'), name='static')
 templates = Jinja2Templates(directory=HERE / 'templates')
 
@@ -41,7 +45,7 @@ def render(request: Request, template: str, **context):
 def home(request: Request, db: Session = Depends(get_db)):
     drawers_count = db.scalar(select(func.count(Drawer.id))) or 0
     items_count = db.scalar(select(func.count(StockItem.id))) or 0
-    medicines_count = db.scalar(select(func.count(Medicine.id))) or 0
+    medicines_count = db.scalar(select(func.count(func.distinct(StockItem.medicine_id)))) or 0
     drawers = db.scalars(select(Drawer).order_by(Drawer.number).limit(12)).all()
     latest = db.scalars(select(StockItem).options(selectinload(StockItem.medicine), selectinload(StockItem.drawer)).order_by(StockItem.id.desc()).limit(6)).all()
     return render(request, 'home.html', page='home', drawers_count=drawers_count, items_count=items_count, medicines_count=medicines_count, drawers=drawers, latest=latest)
@@ -135,4 +139,8 @@ def api_search(q: str = Query('', min_length=2, max_length=100), db: Session = D
 
 @app.get('/health')
 def health():
-    return {'status': 'ok', 'version': '0.1.0'}
+    return {'status': 'ok', 'version': '0.2.0'}
+
+# Include management routes after the public catalogue routes.
+from .manage import router as manage_router  # noqa: E402
+app.include_router(manage_router)
