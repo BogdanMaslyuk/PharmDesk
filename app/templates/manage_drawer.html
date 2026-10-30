@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}{% if drawer %}Изменить ящик №{{drawer.number}}{% else %}Новый ящик{% endif %}{% endblock %}
+{% block breadcrumb %}<a href="/manage">Управление</a> / Ящик{% endblock %}
+{% block content %}
+<a class="backlink" href="/manage">← Управление ассортиментом</a>
+<div class="section-header"><div><div class="eyebrow">НАСТРОЙКИ МЕСТА ХРАНЕНИЯ</div><h1>{% if drawer %}Изменить ящик №{{drawer.number}}{% else %}Создать ящик{% endif %}</h1><p>Укажите физическое расположение и название места хранения.</p></div></div>
+<section class="panel form-panel"><div class="panel-head"><h2>Информация о ящике</h2></div><div class="panel-body">
+{% if error %}<div class="form-error" role="alert">{{error}}</div>{% endif %}
+<form method="post" action="{% if drawer %}/manage/drawers/{{drawer.number}}/edit{% else %}/manage/drawers/new{% endif %}">
+<input type="hidden" name="csrf_token" value="{{csrf_token}}">
+<div class="form-grid">
+{% if not drawer %}<label class="form-field">Номер ящика <input type="number" name="number" min="1" max="999999" required placeholder="Например, 23"></label>{% else %}<div class="form-field"><span>Номер ящика</span><div class="readonly-field">№ {{drawer.number}} (не изменяется)</div></div>{% endif %}
+<label class="form-field">Название / группа хранения <input name="name" maxlength="200" required value="{{drawer.name if drawer else ''}}" placeholder="Ноотропы (по рецепту)"></label>
+<label class="form-field">Расположение <input name="location" maxlength="200" value="{{drawer.location or '' if drawer else ''}}" placeholder="Зал 1 · Стеллаж 2"></label>
+<label class="form-field full-width">Примечание <textarea name="description" rows="3" maxlength="2000" placeholder="Дополнительное описание">{{drawer.description or '' if drawer else ''}}</textarea></label>
+</div>
+<div class="actions"><button class="btn btn-primary" type="submit">Сохранить</button><a class="btn btn-white" href="{% if drawer %}/drawers/{{drawer.number}}{% else %}/manage{% endif %}">Отмена</a></div>
+</form></div></section>
+{% endblock %}
