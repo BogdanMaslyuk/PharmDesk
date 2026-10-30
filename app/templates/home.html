@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Обзор{% endblock %}
 {% block content %}
-<section class="hero"><div><div class="eyebrow">ПАНЕЛЬ ФАРМАЦЕВТА</div><h1>Всё на своём месте.</h1><p>Быстрый доступ к ящикам, препаратам и сведениям об аптечном ассортименте.</p><div class="actions"><a class="btn btn-primary" href="/drawers">Открыть карту ящиков <span>↗</span></a><a class="btn btn-white" href="/medicines">Найти препарат</a></div></div><div class="hero-visual"><span>✚</span><div>ЛОКАЛЬНАЯ БАЗА</div></div></section>
+<section class="hero"><div><div class="eyebrow">ПАНЕЛЬ ФАРМАЦЕВТА</div><h1>Всё на своём месте.</h1><p>Быстрый доступ к ящикам, препаратам и сведениям об аптечном ассортименте.</p><div class="actions"><a class="btn btn-primary" href="/drawers">Открыть карту ящиков <span>↗</span></a><a class="btn btn-white" href="/medicines">Найти препарат</a><a class="btn btn-white" href="/manage/import">Загрузить Excel</a></div></div><div class="hero-visual"><span>✚</span><div>ЛОКАЛЬНАЯ БАЗА</div></div></section>
 <div class="stat-grid">
   <div class="stat"><div class="stat-title">Ящиков в базе <span>▤</span></div><div class="stat-value">{{ drawers_count }}</div><div class="stat-desc">Мест хранения</div></div>
   <div class="stat"><div class="stat-title">Товарных позиций <span>☷</span></div><div class="stat-value">{{ items_count }}</div><div class="stat-desc">Записей в ассортименте</div></div>
