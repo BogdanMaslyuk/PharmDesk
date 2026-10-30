@@ -5,6 +5,7 @@ Only inventory links in the listed drawers are replaced; other drawers and
 medicine reference records are untouched.
 """
 from datetime import datetime
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session
 from .batch import ImportErrorUser, prepare, MAX_BYTES
 from .database import DATABASE_URL, ROOT
 from .importer import import_rows
-from .models import Drawer, InventoryEvent, StockItem
+from .models import Drawer, InventoryEvent, StockItem, Medicine
 
 
 class ReplaceError(ValueError):
@@ -76,6 +77,19 @@ def replace_stock(db: Session, raw: bytes, filename: str):
                 raise ReplaceError("Unexpected skipped row; cancelling transaction.")
         if created != plan["summary"]["accepted_rows"]:
             raise ReplaceError("Row-count mismatch; cancelling transaction.")
+        # Purge only orphaned, unannotated OCR names; preserve curated medicine
+        # records with verified clinical data or mapped ingredients.
+        db.flush()
+        orphans = db.scalars(
+            select(Medicine).where(
+                ~Medicine.stock_items.any(),
+                ~Medicine.clinical_records.any(),
+                ~Medicine.ingredients.any(),
+            )
+        ).all()
+        for medicine in orphans:
+            db.delete(medicine)
+        db.flush()
         db.add(InventoryEvent(
             event_type="replace_inventory",
             description=(
@@ -102,8 +116,9 @@ def backup_local_database():
     backup_dir.mkdir(exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     target = backup_dir / f"before_inventory_replacement_{stamp}.sqlite3"
-    with sqlite3.connect(str(db_path)) as source, sqlite3.connect(str(target)) as saved:
-        source.backup(saved)
+    with closing(sqlite3.connect(str(db_path))) as source:
+        with closing(sqlite3.connect(str(target))) as saved:
+            source.backup(saved)
     if target.stat().st_size == 0:
         raise ReplaceError("Backup failed: empty file. Inventory not changed.")
     return target
