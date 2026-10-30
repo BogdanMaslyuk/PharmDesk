@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Обзор{% endblock %}
+{% block content %}
+<section class="hero"><div><div class="eyebrow">ПАНЕЛЬ ФАРМАЦЕВТА</div><h1>Всё на своём месте.</h1><p>Быстрый доступ к ящикам, препаратам и сведениям об аптечном ассортименте.</p><div class="actions"><a class="btn btn-primary" href="/drawers">Открыть карту ящиков <span>↗</span></a><a class="btn btn-white" href="/medicines">Найти препарат</a></div></div><div class="hero-visual"><span>✚</span><div>ЛОКАЛЬНАЯ БАЗА</div></div></section>
+<div class="stat-grid">
+  <div class="stat"><div class="stat-title">Ящиков в базе <span>▤</span></div><div class="stat-value">{{ drawers_count }}</div><div class="stat-desc">Мест хранения</div></div>
+  <div class="stat"><div class="stat-title">Товарных позиций <span>☷</span></div><div class="stat-value">{{ items_count }}</div><div class="stat-desc">Записей в ассортименте</div></div>
+  <div class="stat"><div class="stat-title">Карточек товаров <span>✚</span></div><div class="stat-value">{{ medicines_count }}</div><div class="stat-desc">Не подтверждает наличие</div></div>
+</div>
+<div class="two-col">
+  <section class="panel"><div class="panel-head"><div><h2>Карта ящиков</h2><p>Быстрый переход к содержимому</p></div><a href="/drawers" class="text-link">Все ящики ↗</a></div>
+  <div class="drawer-preview">{% for d in drawers %}<a class="drawer-tile" href="/drawers/{{ d.number }}"><span class="tile-id">№ {{ d.number }}</span><b>{{ d.name }}</b><span class="tile-arrow">↗</span></a>{% else %}<div class="empty-mini">Пока нет ящиков. Выполните <code>seed-demo</code> или импорт.</div>{% endfor %}</div></section>
+  <section class="panel"><div class="panel-head"><div><h2>Последние записи</h2><p>Товары, внесённые в базу</p></div></div><div class="mini-list">{% for s in latest %}<a href="/medicines/{{ s.medicine.id }}" class="mini-row"><div class="pill-icon">✚</div><div class="mini-copy"><b>{{ s.medicine.name }}</b><small>Код {{ s.article_code }}</small></div><span class="tiny-label">№ {{ s.drawer.number }}</span></a>{% else %}<div class="empty-mini">Список появится после импорта товаров.</div>{% endfor %}</div></section>
+</div>
+<div class="notice"><b>Важно:</b> это демонстрационный учёт товаров. Карточки показаний, противопоказаний и проверка взаимодействий будут доступны только после подключения проверенных источников. Наличие товаров в ящике не равно подтверждённым остаткам.</div>
+{% endblock %}
