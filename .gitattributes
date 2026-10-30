@@ -1,0 +1,8 @@
+# Preserve Windows batch line endings when Git checks out source files.
+*.bat text eol=crlf
+
+# Use LF for Python and web sources.
+*.py text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
