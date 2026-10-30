@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Управление ассортиментом{% endblock %}
+{% block breadcrumb %}Управление{% endblock %}
+{% block content %}
+<div class="section-header"><div><div class="eyebrow">УПРАВЛЕНИЕ СИСТЕМОЙ</div><h1>Ассортимент и ящики</h1><p>Создавайте места хранения, редактируйте товарные позиции и загружайте файлы.</p></div></div>
+<div class="actions manage-actions"><a href="/manage/drawers/new" class="btn btn-primary">+ Новый ящик</a><a href="/manage/import" class="btn btn-white">↑ Массовый импорт Excel / CSV</a></div>
+<div class="two-col">
+  <section class="panel"><div class="panel-head"><h2>Ящики в базе</h2><span class="counter">{{ drawers|length }}</span></div><div class="mini-list">
+    {% for d in drawers %}
+    <div class="mini-row"><div class="pill-icon">▤</div><div class="mini-copy"><b>№{{d.number}} — {{d.name}}</b><small>{{d.location or 'Расположение не указано'}}</small></div><a href="/drawers/{{d.number}}" class="text-link">Открыть</a><a href="/manage/drawers/{{d.number}}/edit" class="text-link">Изменить</a></div>
+    {% else %}<div class="empty-mini">Пока нет ящиков. Создайте первый или импортируйте файл.</div>{% endfor %}
+  </div></section>
+  <section class="panel"><div class="panel-head"><h2>Последние изменения</h2></div><div class="mini-list">
+    {% for event in events %}
+    <div class="mini-row"><div class="pill-icon">↺</div><div class="mini-copy"><b>{{event.description}}</b><small>{{event.created_at.strftime('%d.%m.%Y %H:%M') if event.created_at else '—'}}</small></div></div>
+    {% else %}<div class="empty-mini">Журнал начнёт заполняться после изменений через сайт.</div>{% endfor %}
+  </div></section>
+</div>
+<div class="notice"><b>Локальный режим:</b> приложение не имеет пользовательских учётных записей. Не открывайте доступ к нему через интернет или общую сеть без авторизации и дополнительной защиты.</div>
+{% endblock %}
