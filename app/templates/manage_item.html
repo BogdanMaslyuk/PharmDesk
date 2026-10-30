@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}{% if item %}Редактировать товар{% else %}Новый товар{% endif %}{% endblock %}
+{% block breadcrumb %}<a href="/manage">Управление</a> / Товар{% endblock %}
+{% block content %}
+<a class="backlink" href="/drawers/{{drawer.number}}">← Ящик №{{drawer.number}}</a>
+<div class="section-header"><div><div class="eyebrow">ТОВАРНАЯ ПОЗИЦИЯ · ЯЩИК №{{drawer.number}}</div><h1>{% if item %}Редактировать товар{% else %}Добавить товар{% endif %}</h1><p>Изменения затрагивают только каталог ассортимента, не лекарственные инструкции.</p></div></div>
+{% if error %}<div class="form-error" role="alert">{{error}}</div>{% endif %}
+<section class="panel form-panel"><div class="panel-head"><h2>Основная информация</h2></div><div class="panel-body">
+<form method="post" action="{% if item %}/manage/items/{{item.id}}/edit{% else %}/manage/drawers/{{drawer.number}}/items/new{% endif %}">
+<input type="hidden" name="csrf_token" value="{{csrf_token}}">
+<div class="form-grid">
+<label class="form-field">Код товара <input name="article_code" maxlength="80" required value="{{item.article_code if item else ''}}" placeholder="Внутренний код"></label>
+<label class="form-field full-width">Наименование товара <input name="name" maxlength="350" required value="{{item.medicine.name if item else ''}}" placeholder="Полное название с дозировкой и упаковкой"></label>
+<label class="form-field full-width">Производитель <input name="manufacturer" maxlength="300" value="{{item.medicine.manufacturer or '' if item else ''}}" placeholder="Необязательно"></label>
+</div>
+<div class="notice">Изменение названия не изменяет автоматически действующее вещество или другие фармакологические сведения. Их необходимо сверять по официальным источникам.</div>
+<div class="actions"><button class="btn btn-primary" type="submit">Сохранить позицию</button><a class="btn btn-white" href="/drawers/{{drawer.number}}">Отмена</a></div></form></div></section>
+{% if item %}
+<div class="two-col settings-row">
+<section class="panel"><div class="panel-head"><h2>Переместить в другой ящик</h2></div><div class="panel-body">
+<form action="/manage/items/{{item.id}}/move" method="post"><input type="hidden" name="csrf_token" value="{{csrf_token}}">
+<label class="form-field">Куда переместить?
+<select name="target_drawer" required>{% for d in drawers %}<option value="{{d.number}}" {% if d.number == drawer.number %}selected{% endif %}>№{{d.number}} — {{d.name}}</option>{% endfor %}</select></label>
+<button type="submit" class="btn btn-white">Переместить</button></form></div></section>
+<section class="panel"><div class="panel-head"><h2>Удалить запись</h2></div><div class="panel-body"><p class="field-hint">Удаляет связь товара с этим ящиком, но не справочные сведения о лекарстве. Для подтверждения введите DELETE.</p>
+<form action="/manage/items/{{item.id}}/delete" method="post"><input type="hidden" name="csrf_token" value="{{csrf_token}}">
+<label class="form-field">Подтверждение <input name="confirm" autocomplete="off" placeholder="DELETE"></label>
+<button class="btn btn-danger" type="submit">Удалить позицию</button></form></div></section>
+</div>
+{% endif %}
+{% endblock %}
