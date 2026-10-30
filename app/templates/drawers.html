@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}Карта ящиков{% endblock %}
+{% block breadcrumb %}Ящики{% endblock %}
+{% block content %}
+<div class="section-header"><div><div class="eyebrow">НАВИГАЦИЯ ПО АПТЕКЕ</div><h1>Карта ящиков</h1><p>Выберите ящик, чтобы увидеть все размещённые в нём препараты.</p></div><span class="counter">Всего: {{ drawers|length }}</span></div>
+<form class="search-row" action="/drawers" method="get"><span>⌕</span><input name="q" type="search" value="{{ q }}" placeholder="Номер ящика или название категории" aria-label="Поиск ящика"><button class="btn btn-primary" type="submit">Найти</button></form>
+<div class="drawer-grid">{% for drawer, qty in drawers %}<a href="/drawers/{{ drawer.number }}" class="drawer-card"><div class="drawer-card-top"><span class="drawer-number">ЯЩИК № {{ drawer.number }}</span><span class="round-arrow">↗</span></div><h2>{{ drawer.name }}</h2><p>{{ drawer.location or 'Место хранения' }}</p><div class="drawer-card-bottom"><span>▤</span> {{ qty }} позиций</div></a>{% else %}<div class="empty-state">По заданному запросу ящики не найдены.</div>{% endfor %}</div>
+{% endblock %}
