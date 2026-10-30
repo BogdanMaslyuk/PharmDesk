@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Импорт Excel / CSV{% endblock %}
+{% block breadcrumb %}<a href="/manage">Управление</a> / Импорт{% endblock %}
+{% block content %}
+<a class="backlink" href="/manage">← Управление ассортиментом</a>
+<div class="section-header"><div><div class="eyebrow">МАССОВОЕ ОБНОВЛЕНИЕ</div><h1>Импорт ассортимента</h1><p>Загрузите один файл со всеми ящиками или выгрузку одного ящика.</p></div></div>
+<div class="two-col">
+<section class="panel"><div class="panel-head"><h2>Выберите файл</h2></div><div class="panel-body">
+<form id="import-form">
+<input type="hidden" name="csrf_token" value="{{csrf_token}}">
+<label class="form-field">CSV или XLSX <input type="file" name="file" accept=".csv,.xlsx" required></label>
+<div class="form-grid">
+<label class="form-field">Номер ящика (если нет колонки «Ящик») <input type="number" name="default_drawer" min="1" max="999999" placeholder="Например, 23"></label>
+<label class="form-field">Название ящика по умолчанию <input type="text" name="default_name" maxlength="200" value="Без названия"></label>
+</div>
+<p class="field-hint">Размер до 4 МБ, до 3000 строк. Файл хранится локально в вашем браузере до отправки на ваш компьютер.</p>
+<div class="actions"><button id="preview-import" type="button" class="btn btn-white">Проверить файл</button><button id="apply-import" type="button" class="btn btn-primary" disabled>Подтвердить импорт</button></div>
+</form></div></section>
+<section class="panel"><div class="panel-head"><h2>Результат проверки</h2></div><div class="panel-body"><div id="import-report" class="result-placeholder" role="status" aria-live="polite">Проверьте файл перед импортом. До подтверждения данные не меняются.</div></div></section>
+</div>
+<section class="panel information-panel"><div class="panel-head"><h2>Структура таблицы</h2></div>
+<div class="table-wrap"><table><thead><tr><th>Ящик</th><th>Название ящика</th><th>Код</th><th>Наименование товара</th><th>Производитель</th><th>Дата добавления</th></tr></thead>
+<tbody><tr><td>23</td><td>Учебный ящик</td><td>DEMO-001</td><td>Учебная таблетка 10 мг №20</td><td>Учебный производитель</td><td>01.01.2026</td></tr></tbody></table></div>
+<div class="panel-body"><p class="field-hint">Столбцы «Код» и «Наименование товара» обязательны. «Ящик» можно указать для каждой строки или выбрать один номер сверху. Повторный импорт обновляет совпадения по коду <b>внутри того же ящика</b>, не удаляя записи, отсутствующие в новом файле.</p></div></section>
+<div class="notice"><b>Предупреждение:</b> не загружайте сюда персональные данные покупателей. Не публикуйте реальные аптечные выгрузки на GitHub, даже если они открываются в локальном приложении.</div>
+<script defer src="{{ url_for('static', path='/import.js') }}"></script>
+{% endblock %}
