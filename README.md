@@ -20,9 +20,53 @@
 
 **Важно:** запись в ассортименте не подтверждает реальный остаток. Из выгрузки, содержащей только наименование, производителя и код, нельзя автоматически достоверно установить действующее вещество, показания, противопоказания, совместимость и зарегистрированные дозировки. Соответствующие поля не заполняются неподтверждёнными сведениями.
 
+## One-time Git connection on Windows (recommended)
+
+Instead of downloading a ZIP for every update, clone the repository with Git once.
+Use **PowerShell** (Git for Windows and Python 3.11+ must be installed):
+
+```powershell
+git --version
+cd "$env:USERPROFILE\Desktop"
+git clone https://github.com/BogdanMaslyuk/PharmDesk.git PharmDesk-git
+cd .\PharmDesk-git
+.\update-windows.bat
+.\start-windows.bat
+```
+
+If `git --version` reports that Git is missing, install Git for Windows from
+https://git-scm.com/download/win, **restart PowerShell**, and rerun these commands.
+If the directory `PharmDesk-git` already exists, do not clone over it: navigate
+into the existing Git clone and run `update-windows.bat`.
+
+For every later update, **stop the running local server**, open the `PharmDesk-git`
+directory, and double-click **`update-windows.bat`**. This wrapper calls
+`update-windows.ps1` and performs:
+
+1. Verify that this is the intended GitHub repository on branch `main`,
+   and refuse to overwrite local edits to tracked code.
+2. Copy the local SQLite database to `backups/` if it exists.
+3. Run `git pull --ff-only origin main` (no reset, force or destructive merge).
+4. Set up the local Python environment if missing, then install dependencies.
+5. Run automated tests.
+
+The SQLite file `pharmdesk.sqlite3`, `.venv/`, `backups/`, and private
+Excel inventory files remain **local** and are ignored by Git.
+Code changes from GitHub reach the desktop; local edits in the website's
+inventory database **do not automatically upload to GitHub**, by design.
+For transferring data between PCs use a deliberate, protected database backup,
+not Git commits.
+
+If you used the earlier ZIP version, the ZIP folder is **not** a Git clone.
+Create the fresh `PharmDesk-git` folder as above. Move your own database only
+if you have verified its content and made a copy. **Do not migrate an older
+OCR-contaminated inventory unintentionally.** Starting with a fresh local database
+and importing the reviewed inventory is safer if the previous database had
+incorrect product names.
+
 ## Запуск на Windows
 
-Понадобится Python 3.11 или новее. Скачайте репозиторий через **Code → Download ZIP** и распакуйте папку.
+Понадобится Python 3.11 или новее. Для постоянной работы используйте Git-подключение выше. Для разового запуска можно скачать архив через **Code → Download ZIP** и распаковать его.
 
 1. Запустите `setup-windows.bat`: установятся зависимости, появится локальная база с вымышленным ящиком №101.
 2. Запустите `start-windows.bat`.
