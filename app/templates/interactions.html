@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Взаимодействия{% endblock %}
+{% block breadcrumb %}Взаимодействия{% endblock %}
+{% block content %}
+<div class="section-header"><div><div class="eyebrow">ПЛАНИРУЕМЫЙ МОДУЛЬ</div><h1>Лекарственные взаимодействия</h1><p>Здесь будет проверка сочетаний нескольких действующих веществ по лицензированной или иной законно используемой проверенной базе.</p></div></div>
+<div class="warning-panel"><span class="warning-icon">!</span><div><b>Проверка взаимодействий пока недоступна</b><p>Медицинская база не подключена. Отсутствие предупреждения НЕ является подтверждением безопасности. Не используйте этот раздел для консультаций, влияющих на лечение.</p></div></div>
+<div class="details-grid"><section class="panel"><div class="panel-head"><h2>Подготовка списка препаратов</h2></div><div class="panel-body"><label class="field-label" for="medicine-list">Названия препаратов, по одному в строке</label><textarea id="medicine-list" placeholder="Например:
+Препарат 1
+Препарат 2" rows="8" maxlength="2500"></textarea><button class="btn btn-primary" id="check-interactions" type="button">Проверить подключение модуля</button><p class="field-hint">Список не сохраняется в базе. Не вводите ФИО, телефоны и другие данные покупателей.</p></div></section>
+<section class="panel"><div class="panel-head"><h2>Статус запроса</h2></div><div class="panel-body"><div id="interaction-result" class="result-placeholder" role="status" aria-live="polite">Введите минимум два препарата и нажмите кнопку. Программа сообщит о состоянии модуля, но пока не проведёт медицинскую проверку.</div></div></section></div>
+<section class="panel information-panel"><div class="panel-head"><h2>Что будет в следующей версии</h2></div><div class="feature-row"><div>01 <b>Нормализация названий</b><p>Сопоставление торговых наименований и действующих веществ.</p></div><div>02 <b>Проверка пар</b><p>Механизм, значимость риска, действие, надёжный источник.</p></div><div>03 <b>Контроль качества</b><p>Срок актуализации данных и защита от ошибочных выводов.</p></div></div></section>
+{% endblock %}
