@@ -1,0 +1,50 @@
+name: Windows updater syntax
+on:
+  push:
+    paths:
+      - 'update-windows.ps1'
+      - 'update-windows.bat'
+      - '.gitattributes'
+      - '.github/workflows/windows-update-syntax.yml'
+  pull_request:
+    paths:
+      - 'update-windows.ps1'
+      - 'update-windows.bat'
+      - '.gitattributes'
+      - '.github/workflows/windows-update-syntax.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check PowerShell script grammar
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD "update-windows.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host "PowerShell syntax is valid."
+      - name: Check batch file ASCII and Windows line endings
+        shell: pwsh
+        run: |
+          $bytes = [System.IO.File]::ReadAllBytes((Join-Path $PWD "update-windows.bat"))
+          if ($bytes | Where-Object { $_ -gt 127 }) {
+            throw "Windows batch wrapper must be ASCII-only."
+          }
+          $content = [System.Text.Encoding]::ASCII.GetString($bytes)
+          if ($content -notmatch "`r`n") {
+            throw "Windows batch wrapper must have CRLF line endings."
+          }
+          Write-Host "Batch file format is valid."
