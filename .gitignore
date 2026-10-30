@@ -19,3 +19,10 @@ examples/private_*.csv
 data/
 exports/
 *.xls
+
+# Obsolete OCR datasets: never recommit outdated medicine names
+PharmDesk_ассортимент_из_60_фото.xlsx
+PharmDesk_импорт_из_фото.csv
+ls_clean.json
+ls_ocr_*.json
+ls_ocr_refined.json
