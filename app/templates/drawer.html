@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Ящик №{{ drawer.number }}{% endblock %}
+{% block breadcrumb %}<a href="/drawers">Ящики</a> / №{{ drawer.number }}{% endblock %}
+{% block content %}
+<a class="backlink" href="/drawers">← Все ящики</a><div class="section-header"><div><div class="eyebrow">МЕСТО ХРАНЕНИЯ № {{ drawer.number }}</div><h1>{{ drawer.name }}</h1><p>{{ drawer.location or 'Расположение не указано' }} · {{ count }} товарных позиций в базе</p></div><div class="drawer-big-number">{{ drawer.number }}</div></div>
+<div class="notice"><b>Ассортимент:</b> эти записи отражают список из выгрузки. Фактическое наличие и количество не определены без данных остатков.</div>
+<form action="/drawers/{{ drawer.number }}" method="get" class="search-row"><span>⌕</span><input type="search" name="q" value="{{ q }}" placeholder="Поиск по названию, производителю или коду" aria-label="Поиск по ящику"><button class="btn btn-primary" type="submit">Найти</button></form>
+<section class="panel table-panel"><div class="panel-head"><h2>Содержимое ящика</h2><span class="counter">{{ items|length }} записей</span></div><div class="table-wrap"><table><thead><tr><th>Препарат</th><th>Код товара</th><th>Производитель</th><th>Остатки</th><th></th></tr></thead><tbody>{% for item in items %}<tr><td><a href="/medicines/{{ item.medicine.id }}" class="drug-name">{{ item.medicine.name }}</a>{% if item.medicine.ingredients %}<div class="drug-substance">{{ item.medicine.ingredients|map(attribute='name')|join(', ') }}</div>{% endif %}</td><td class="code">{{ item.article_code }}</td><td class="muted">{{ item.medicine.manufacturer or '—' }}</td><td><span class="neutral-pill">Не проверены</span></td><td><a href="/medicines/{{ item.medicine.id }}" class="row-arrow" aria-label="Открыть карточку">↗</a></td></tr>{% else %}<tr><td colspan="5" class="empty-cell">По запросу препараты не найдены.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}
