@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.sqlite3
+*.db
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.DS_Store
+*.xlsx
+private_data/
+# Private pharmacy exports and inventory
+examples/stock_drawer_*.csv
+examples/private_*.csv
+data/
+exports/
+*.xls
