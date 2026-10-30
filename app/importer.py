@@ -83,7 +83,7 @@ def import_rows(db: Session, raw_rows, drawer_number: int, drawer_name: str, *, 
         drawer = Drawer(number=drawer_number, name=drawer_name)
         db.add(drawer)
         db.flush()
-    elif drawer_name:
+    elif drawer_name and drawer_name != 'Без названия':
         drawer.name = drawer_name
     created = updated = skipped = 0
     for raw in raw_rows:
