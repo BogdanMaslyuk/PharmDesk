@@ -4,12 +4,16 @@ on:
     paths:
       - 'update-windows.ps1'
       - 'update-windows.bat'
+      - 'setup-windows.bat'
+      - 'start-windows.bat'
       - '.gitattributes'
       - '.github/workflows/windows-update-syntax.yml'
   pull_request:
     paths:
       - 'update-windows.ps1'
       - 'update-windows.bat'
+      - 'setup-windows.bat'
+      - 'start-windows.bat'
       - '.gitattributes'
       - '.github/workflows/windows-update-syntax.yml'
 
@@ -48,3 +52,24 @@ jobs:
             throw "Windows batch wrapper must have CRLF line endings."
           }
           Write-Host "Batch file format is valid."
+      - name: Ensure Git checkout is clean and batch EOL rules are correct
+        shell: pwsh
+        run: |
+          $files = @("setup-windows.bat", "start-windows.bat", "update-windows.bat")
+          $eol = @(& git ls-files --eol -- $files)
+          if ($LASTEXITCODE -ne 0 -or $eol.Count -ne $files.Count) {
+            throw "Could not check tracked batch files."
+          }
+          foreach ($entry in $eol) {
+            Write-Host $entry
+            if ($entry -notmatch '^i/lf\s+w/crlf\s+attr/text eol=crlf\s+') {
+              throw "Git blob/checkout line endings are inconsistent. The repository must store LF and Windows must check out CRLF."
+            }
+          }
+          $changed = @(& git status --porcelain --untracked-files=no)
+          if ($LASTEXITCODE -ne 0 -or $changed.Count -gt 0) {
+            $changed | ForEach-Object { Write-Host $_ }
+            throw "Fresh Git clone contains modified tracked files."
+          }
+          Write-Host "Clean Git checkout verified."
+
