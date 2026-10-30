@@ -16,6 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .database import get_db, init_db
 from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem
+from .search import stock_matches, drawer_matches
 
 HERE = Path(__file__).resolve().parent
 
@@ -55,40 +56,42 @@ def home(request: Request, db: Session = Depends(get_db)):
 def list_drawers(request: Request, q: str = Query('', max_length=100), db: Session = Depends(get_db)):
     statement = (select(Drawer, func.count(StockItem.id))
                  .outerjoin(StockItem, Drawer.id == StockItem.drawer_id)
-                 .group_by(Drawer.id)
-                 .order_by(Drawer.number))
-    if q.strip():
-        like = f'%{q.strip()}%'
-        statement = statement.where(or_(Drawer.name.ilike(like), Drawer.location.ilike(like), cast(Drawer.number, String).ilike(like)))
+                 .group_by(Drawer.id).order_by(Drawer.number))
     rows = db.execute(statement).all()
+    if q.strip():
+        rows = [(drawer, count) for drawer, count in rows if drawer_matches(drawer, q)]
     return render(request, 'drawers.html', page='drawers', drawers=rows, q=q)
-
 
 @app.get('/drawers/{number}', response_class=HTMLResponse)
 def drawer_detail(number: int, request: Request, q: str = Query('', max_length=100), db: Session = Depends(get_db)):
     drawer = db.scalar(select(Drawer).where(Drawer.number == number))
     if not drawer:
         raise HTTPException(status_code=404, detail='Ящик не найден')
-    statement = (select(StockItem).options(selectinload(StockItem.medicine).selectinload(Medicine.ingredients))
+    statement = (select(StockItem)
+                 .options(selectinload(StockItem.medicine).selectinload(Medicine.ingredients))
                  .where(StockItem.drawer_id == drawer.id).join(Medicine)
                  .order_by(Medicine.name))
-    if q.strip():
-        like = f'%{q.strip()}%'
-        statement = statement.where(or_(Medicine.name.ilike(like), Medicine.manufacturer.ilike(like), StockItem.article_code.ilike(like), Medicine.ingredients.any(Ingredient.name.ilike(like))))
     items = db.scalars(statement).all()
+    if q.strip():
+        items = [item for item in items if stock_matches(item, q)]
     count = db.scalar(select(func.count(StockItem.id)).where(StockItem.drawer_id == drawer.id)) or 0
     return render(request, 'drawer.html', page='drawers', drawer=drawer, items=items, count=count, q=q)
 
-
 @app.get('/medicines', response_class=HTMLResponse)
-def medicines(request: Request, q: str = Query('', max_length=100), db: Session = Depends(get_db)):
-    statement = select(StockItem).join(Medicine).options(selectinload(StockItem.medicine).selectinload(Medicine.ingredients), selectinload(StockItem.drawer)).order_by(Medicine.name)
+def medicines(request: Request, q: str = Query('', max_length=100),
+              drawer: int | None = Query(None, ge=1), db: Session = Depends(get_db)):
+    statement = (select(StockItem).join(Medicine)
+                 .options(selectinload(StockItem.medicine).selectinload(Medicine.ingredients),
+                          selectinload(StockItem.drawer)).order_by(Medicine.name))
+    if drawer is not None:
+        statement = statement.join(Drawer).where(Drawer.number == drawer)
+    items = db.scalars(statement).all()
     if q.strip():
-        like = f'%{q.strip()}%'
-        statement = statement.where(or_(Medicine.name.ilike(like), Medicine.manufacturer.ilike(like), StockItem.article_code.ilike(like), Medicine.ingredients.any(Ingredient.name.ilike(like))))
-    items = db.scalars(statement.limit(150)).all()
-    return render(request, 'medicines.html', page='medicines', items=items, q=q)
-
+        items = [item for item in items if stock_matches(item, q)]
+    total = len(items)
+    all_drawers = db.scalars(select(Drawer).order_by(Drawer.number)).all()
+    return render(request, 'medicines.html', page='medicines', items=items[:150], total=total,
+                  q=q, drawer=drawer, drawers=all_drawers)
 
 @app.get('/medicines/{medicine_id}', response_class=HTMLResponse)
 def medicine_detail(medicine_id: int, request: Request, db: Session = Depends(get_db)):
@@ -130,12 +133,12 @@ def check_interactions(payload: InteractionRequest):
 
 @app.get('/api/search')
 def api_search(q: str = Query('', min_length=2, max_length=100), db: Session = Depends(get_db)):
-    like = f'%{q.strip()}%'
-    stocks = db.scalars(select(StockItem).join(Medicine).options(selectinload(StockItem.medicine), selectinload(StockItem.drawer))
-                        .where(or_(Medicine.name.ilike(like), StockItem.article_code.ilike(like), Medicine.ingredients.any(Ingredient.name.ilike(like))))
-                        .order_by(Medicine.name).limit(10)).all()
-    return [{'id': s.medicine.id, 'name': s.medicine.name, 'code': s.article_code, 'drawer': s.drawer.number} for s in stocks]
-
+    stocks = db.scalars(select(StockItem).join(Medicine)
+        .options(selectinload(StockItem.medicine).selectinload(Medicine.ingredients), selectinload(StockItem.drawer))
+        .order_by(Medicine.name)).all()
+    matches = [s for s in stocks if stock_matches(s, q)]
+    return [{'id': s.medicine.id, 'name': s.medicine.name, 'code': s.article_code,
+             'drawer': s.drawer.number} for s in matches[:10]]
 
 @app.get('/health')
 def health():
