@@ -91,3 +91,11 @@ class Interaction(Base):
     reviewed_on: Mapped[date] = mapped_column(Date)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     __table_args__ = (UniqueConstraint('ingredient_a_id', 'ingredient_b_id', name='uq_interaction_pair'),)
+
+class InventoryEvent(Base):
+    """Local audit trail for human edits, moves and imports; no patient data."""
+    __tablename__ = 'inventory_events'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(48))
+    description: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
