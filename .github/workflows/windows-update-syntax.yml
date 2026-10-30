@@ -6,6 +6,8 @@ on:
       - 'update-windows.bat'
       - 'setup-windows.bat'
       - 'start-windows.bat'
+      - 'replace-inventory-windows.bat'
+      - 'replace-inventory-windows.ps1'
       - '.gitattributes'
       - '.github/workflows/windows-update-syntax.yml'
   pull_request:
@@ -14,6 +16,8 @@ on:
       - 'update-windows.bat'
       - 'setup-windows.bat'
       - 'start-windows.bat'
+      - 'replace-inventory-windows.bat'
+      - 'replace-inventory-windows.ps1'
       - '.gitattributes'
       - '.github/workflows/windows-update-syntax.yml'
 
@@ -39,6 +43,15 @@ jobs:
             $errors | ForEach-Object { Write-Error $_.Message }
             exit 1
           }
+          $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD "replace-inventory-windows.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
           Write-Host "PowerShell syntax is valid."
       - name: Check batch file ASCII and Windows line endings
         shell: pwsh
@@ -55,7 +68,7 @@ jobs:
       - name: Ensure Git checkout is clean and batch EOL rules are correct
         shell: pwsh
         run: |
-          $files = @("setup-windows.bat", "start-windows.bat", "update-windows.bat")
+          $files = @("setup-windows.bat", "start-windows.bat", "update-windows.bat", "replace-inventory-windows.bat")
           $eol = @(& git ls-files --eol -- $files)
           if ($LASTEXITCODE -ne 0 -or $eol.Count -ne $files.Count) {
             throw "Could not check tracked batch files."
