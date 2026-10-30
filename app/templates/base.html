@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{% block title %}PharmDesk{% endblock %} — рабочее место фармацевта</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <script defer src="{{ url_for('static', path='/app.js') }}"></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-mark">✚</span><span>Pharm<span class="brand-strong">Desk</span><small>РАБОЧЕЕ МЕСТО</small></span></a>
+    <div class="nav-section">РАЗДЕЛЫ</div>
+    <nav class="main-nav" aria-label="Навигация">
+      <a class="nav-link {% if page == 'home' %}active{% endif %}" href="/"><span>◫</span> Обзор</a>
+      <a class="nav-link {% if page == 'drawers' %}active{% endif %}" href="/drawers"><span>▤</span> Карта ящиков</a>
+      <a class="nav-link {% if page == 'medicines' %}active{% endif %}" href="/medicines"><span>✚</span> Препараты</a>
+      <a class="nav-link {% if page == 'interactions' %}active{% endif %}" href="/interactions"><span>◇</span> Взаимодействия</a>
+    </nav>
+    <div class="sidebar-bottom"><span class="status-dot"></span> Локальная версия 0.1.0 <p>Фармакологический справочник пока не подключён.</p></div>
+  </aside>
+  <div class="main-pane">
+    <header class="topbar"><div class="crumb">PharmDesk <span>/</span> {% block breadcrumb %}Обзор{% endblock %}</div><div class="topnote">● Данные локальной базы</div></header>
+    <main class="content">{% block content %}{% endblock %}</main>
+    <footer>PharmDesk • Инструмент учёта и поиска. Не заменяет официальную инструкцию и профессиональное решение.</footer>
+  </div>
+</div>
+</body></html>
