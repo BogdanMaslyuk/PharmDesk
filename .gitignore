@@ -26,3 +26,6 @@ PharmDesk_импорт_из_фото.csv
 ls_clean.json
 ls_ocr_*.json
 ls_ocr_refined.json
+
+# Local database snapshots made by the Windows updater
+backups/
