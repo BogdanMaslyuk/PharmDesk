@@ -74,7 +74,7 @@ def parse_date(value):
     return None
 
 
-def import_rows(db: Session, raw_rows, drawer_number: int, drawer_name: str, *, demo=False):
+def import_rows(db: Session, raw_rows, drawer_number: int, drawer_name: str, *, demo=False, commit=True):
     """Upsert by drawer+code; rollback should be handled by caller on failure."""
     if drawer_number <= 0:
         raise ValueError('Номер ящика должен быть положительным.')
@@ -121,5 +121,8 @@ def import_rows(db: Session, raw_rows, drawer_number: int, drawer_name: str, *, 
             stock.medicine = medicine
             stock.added_on = parse_date(row['date'])
             updated += 1
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return {'created': created, 'updated': updated, 'skipped': skipped}
