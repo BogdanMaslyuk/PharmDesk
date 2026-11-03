@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title='PharmDesk — рабочее место фармацевта',
     description='Поиск по ящикам и локальному ассортименту. Не предназначено для медицинских решений.',
-    version='0.2.0',
+    version='0.3.0',
     lifespan=lifespan,
 )
 app.add_middleware(SessionMiddleware, secret_key=os.getenv('PHARMDESK_SESSION_SECRET') or secrets.token_urlsafe(32), same_site='strict', https_only=False)
@@ -142,8 +142,11 @@ def api_search(q: str = Query('', min_length=2, max_length=100), db: Session = D
 
 @app.get('/health')
 def health():
-    return {'status': 'ok', 'version': '0.2.0'}
+    return {'status': 'ok', 'version': '0.3.0'}
 
 # Include management routes after the public catalogue routes.
 from .manage import router as manage_router  # noqa: E402
 app.include_router(manage_router)
+
+from .review import router as review_router  # noqa: E402
+app.include_router(review_router)
