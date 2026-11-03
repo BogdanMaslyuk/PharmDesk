@@ -150,3 +150,6 @@ app.include_router(manage_router)
 
 from .review import router as review_router  # noqa: E402
 app.include_router(review_router)
+
+from .identity import router as identity_router  # noqa: E402
+app.include_router(identity_router)
