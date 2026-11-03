@@ -2,7 +2,7 @@
 {% block title %}Сверка {{ record.article_code }}{% endblock %}
 {% block breadcrumb %}<a href="/review">Сверка</a> / Ящик №{{ record.drawer_number }}{% endblock %}
 {% block content %}
-<a class="backlink" href="/review">← К очереди проверки</a>
+<div class="actions" style="margin-bottom:18px"><a class="btn btn-white" href="/review">← К очереди проверки</a>{% if next_record %}<a class="btn btn-primary" href="/review/{{next_record.id}}">Следующая сомнительная запись →</a>{% endif %}</div>
 <div class="section-header"><div><div class="eyebrow">СВЕРКА ПО ОРИГИНАЛЬНОМУ СНИМКУ</div><h1>Ящик №{{ record.drawer_number }} · {{ record.article_code }}</h1><p>Источник: {{ record.source_file }} · строка {{ record.source_row }}. Проверяй именно изображение, а не только распознанный текст.</p></div>
   {% if record.state == 'approved' %}<span class="review-chip good">Подтверждено</span>{% elif record.state == 'excluded' %}<span class="review-chip blocked">Исключено</span>{% else %}<span class="review-chip warn">Ожидает проверки</span>{% endif %}
 </div>
