@@ -225,7 +225,7 @@ def update_item(request: Request, item_id: int, csrf_token: str = Form(...),
                 verified.confirmed_code = None
                 verified.confirmed_name = None
                 verified.confirmed_manufacturer = None
-                verified.checked_at = None
+                # Keep the last review timestamp as an audit/import lock until re-reviewed.
                 _event(db, "invalidate_review", f"Manual edit requires re-review: drawer {drawer.number}, code {original_code}")
         item.medicine = _medicine(db, name, maker)
         item.article_code = code
