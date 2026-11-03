@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.middleware.sessions import SessionMiddleware
 
 from .database import get_db, init_db
-from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem
+from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord
 from .search import stock_matches, drawer_matches
 
 HERE = Path(__file__).resolve().parent
@@ -75,7 +75,11 @@ def drawer_detail(number: int, request: Request, q: str = Query('', max_length=1
     if q.strip():
         items = [item for item in items if stock_matches(item, q)]
     count = db.scalar(select(func.count(StockItem.id)).where(StockItem.drawer_id == drawer.id)) or 0
-    return render(request, 'drawer.html', page='drawers', drawer=drawer, items=items, count=count, q=q)
+    quality = {}
+    for record in db.scalars(select(ReviewRecord).where(ReviewRecord.drawer_number == number)).all():
+        code = record.confirmed_code if record.state == "approved" and record.confirmed_code else record.article_code
+        quality[code] = record
+    return render(request, 'drawer.html', page='drawers', drawer=drawer, items=items, count=count, q=q, quality=quality)
 
 @app.get('/medicines', response_class=HTMLResponse)
 def medicines(request: Request, q: str = Query('', max_length=100),
@@ -90,8 +94,13 @@ def medicines(request: Request, q: str = Query('', max_length=100),
         items = [item for item in items if stock_matches(item, q)]
     total = len(items)
     all_drawers = db.scalars(select(Drawer).order_by(Drawer.number)).all()
+    all_reviews = db.scalars(select(ReviewRecord)).all()
+    quality = {}
+    for record in all_reviews:
+        code = record.confirmed_code if record.state == "approved" and record.confirmed_code else record.article_code
+        quality[(record.drawer_number, code)] = record
     return render(request, 'medicines.html', page='medicines', items=items[:150], total=total,
-                  q=q, drawer=drawer, drawers=all_drawers)
+                  q=q, drawer=drawer, drawers=all_drawers, quality=quality)
 
 @app.get('/medicines/{medicine_id}', response_class=HTMLResponse)
 def medicine_detail(medicine_id: int, request: Request, db: Session = Depends(get_db)):
