@@ -104,6 +104,8 @@ def parse_workbook(raw):
             maker = _clean(cell("Производитель"), 300, "производитель", required=False)
             drawer_name = _clean(cell("Название ящика"), 200, "название ящика", required=False) or "Без названия"
             source = normalized_filename(cell("Исходное изображение"))
+            if Path(source).suffix.casefold() not in (".png", ".jpg", ".jpeg"):
+                raise ReviewImportError(f"Строка {number}: нет корректной ссылки на исходное изображение.")
             try:
                 source_row = int(cell("Строка на снимке"))
                 if source_row < 1 or source_row > 300:
@@ -217,9 +219,9 @@ def prepare_images(raw):
     return images
 
 
-def import_images(db, raw, directory=IMAGE_DIRECTORY):
+def import_images(db, raw, directory=None):
     images = prepare_images(raw)
-    directory = Path(directory)
+    directory = Path(IMAGE_DIRECTORY if directory is None else directory)
     directory.mkdir(parents=True, exist_ok=True)
     existing = {x.name_key: x for x in db.scalars(select(SourceImage)).all()}
     created_files = []
