@@ -9,7 +9,7 @@ from contextlib import closing
 from pathlib import Path
 import sqlite3
 
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
 
 from .batch import ImportErrorUser, prepare, MAX_BYTES
@@ -35,7 +35,7 @@ def plan_replace(db: Session, raw: bytes, filename: str):
     verified_decisions = db.scalars(
         select(ReviewRecord).where(
             ReviewRecord.drawer_number.in_(drawer_numbers),
-            ReviewRecord.state.in_(("approved", "excluded")),
+            or_(ReviewRecord.state.in_(("approved", "excluded")), ReviewRecord.checked_at.is_not(None)),
         )
     ).all()
     if verified_decisions:
