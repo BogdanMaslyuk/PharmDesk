@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Источники действующих веществ{% endblock %}
+{% block breadcrumb %}<a href="/medicines/{{medicine.id}}">Препарат</a> / Сведения о МНН{% endblock %}
+{% block content %}
+<a href="/medicines/{{medicine.id}}" class="backlink">← К карточке препарата</a>
+<div class="section-header"><div><div class="eyebrow">ФАРМАКОЛОГИЧЕСКИЙ СПРАВОЧНИК — НАЧАЛЬНЫЙ ЭТАП</div>
+<h1>Подтверждение действующего вещества</h1>
+<p>{{medicine.name}} · {{medicine.manufacturer or 'Производитель не указан'}}</p></div></div>
+<div class="notice"><strong>Это не автоматическая проверка регистрационных сведений.</strong>
+Записи вносятся человеком по указанной инструкции и сохраняются как свидетельства для будущей фармакологической базы.
+Они <b>не используются</b> автоматически для поиска аналогов, подбора замены или проверки взаимодействий.</div>
+{% if request.query_params.get('saved') %}<div class="notice">Источник добавлен в историю карточки.</div>{% endif %}
+{% if error %}<div class="form-error">{{error}}</div>{% endif %}
+<div class="details-grid">
+<section class="panel"><div class="panel-head"><h2>Добавить подтверждение</h2></div>
+  <div class="panel-body">
+  <form method="post" action="/medicines/{{medicine.id}}/identity">
+    <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+    <label class="form-field">Действующее вещество / состав по инструкции
+      <textarea name="substances" maxlength="500" rows="3" required placeholder="Точные наименования из инструкции"></textarea></label>
+    <label class="form-field">Ссылка на официальную инструкцию в ГРЛС
+      <input type="url" name="source_url" maxlength="800" required placeholder="https://grls.minzdrav.gov.ru/..."></label>
+    <label class="form-field">Примечания и ограничения
+      <textarea name="note" maxlength="1000" rows="3"></textarea></label>
+    <label class="review-check"><input type="checkbox" name="visually_checked" value="yes" required>
+      Я лично открыл указанную инструкцию и проверил состав.</label>
+    <button class="btn btn-primary" type="submit">Сохранить сведения об источнике</button>
+  </form></div>
+</section>
+<section class="panel"><div class="panel-head"><h2>Сохранённые сведения</h2></div>
+  <div class="mini-list">
+    {% for entry in evidence %}
+    <div class="mini-row"><div class="pill-icon">≡</div>
+      <div class="mini-copy"><b>{{entry.substances_text}}</b>
+      <small>Внесено вручную: {{entry.checked_at.strftime('%d.%m.%Y')}}</small>
+      <small>{{entry.notes or 'Без дополнительного комментария'}}</small>
+      <a class="text-link" href="{{entry.source_url}}" target="_blank" rel="noopener noreferrer">{{entry.source_title}} ↗</a></div>
+    </div>
+    {% else %}<div class="empty-mini">Сведения пока не внесены. Автоматическое сопоставление отключено.</div>{% endfor %}
+  </div>
+</section>
+</div>
+{% endblock %}
