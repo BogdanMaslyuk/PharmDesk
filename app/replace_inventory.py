@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from .batch import ImportErrorUser, prepare, MAX_BYTES
 from .database import DATABASE_URL, ROOT
 from .importer import import_rows
-from .models import Drawer, InventoryEvent, StockItem, Medicine
+from .models import Drawer, InventoryEvent, StockItem, Medicine, ReviewRecord
 
 
 class ReplaceError(ValueError):
@@ -32,6 +32,19 @@ def plan_replace(db: Session, raw: bytes, filename: str):
     if not groups or not valid:
         raise ReplaceError("No valid stock rows; refusing to clear inventory.")
     drawer_numbers = sorted(groups)
+    verified_decisions = db.scalars(
+        select(ReviewRecord).where(
+            ReviewRecord.drawer_number.in_(drawer_numbers),
+            ReviewRecord.state.in_(("approved", "excluded")),
+        )
+    ).all()
+    if verified_decisions:
+        raise ReplaceError(
+            "В выбранных ящиках уже есть ручные решения сверки ("
+            + str(len(verified_decisions))
+            + "). Полная замена заблокирована, чтобы не восстановить старые OCR-ошибки. "
+              "Сначала создайте согласованную выгрузку подтверждённых товаров."
+        )
     existing = db.scalars(
         select(Drawer).where(Drawer.number.in_(drawer_numbers))
     ).all()
