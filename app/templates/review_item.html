@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Сверка {{ record.article_code }}{% endblock %}
+{% block breadcrumb %}<a href="/review">Сверка</a> / Ящик №{{ record.drawer_number }}{% endblock %}
+{% block content %}
+<a class="backlink" href="/review">← К очереди проверки</a>
+<div class="section-header"><div><div class="eyebrow">СВЕРКА ПО ОРИГИНАЛЬНОМУ СНИМКУ</div><h1>Ящик №{{ record.drawer_number }} · {{ record.article_code }}</h1><p>Источник: {{ record.source_file }} · строка {{ record.source_row }}. Проверяй именно изображение, а не только распознанный текст.</p></div>
+  {% if record.state == 'approved' %}<span class="review-chip good">Подтверждено</span>{% elif record.state == 'excluded' %}<span class="review-chip blocked">Исключено</span>{% else %}<span class="review-chip warn">Ожидает проверки</span>{% endif %}
+</div>
+{% if request.query_params.get('saved') %}<div class="notice"><b>Решение сохранено.</b> История изменений ниже.</div>{% endif %}
+{% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+<div class="review-detail-grid">
+  <section class="panel">
+    <div class="panel-head"><h2>Оригинальная фотография</h2>{% if source %}<a class="text-link" target="_blank" rel="noopener" href="/review/image/{{source.id}}">Открыть крупно ↗</a>{% endif %}</div>
+    <div class="review-image-container">
+    {% if source %}
+      <a href="/review/image/{{source.id}}" target="_blank" rel="noopener"><img src="/review/image/{{source.id}}" alt="Оригинальный скриншот ящика №{{record.drawer_number}}, строка {{record.source_row}}" loading="lazy"></a>
+    {% else %}
+      <div class="info-placeholder">Исходное фото пока не загружено. Перейдите в раздел «Сверка» и загрузите архив «ЛС.zip».</div>
+    {% endif %}
+    </div>
+    <div class="panel-body"><p class="field-hint">Снимок целиком, без автоматической обрезки. Ищите строку №{{record.source_row}}. При необходимости откройте изображение в новой вкладке для увеличения.</p></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>Сверка товарной записи</h2></div>
+    <div class="panel-body">
+      <div class="review-original">
+        <span>В предыдущем распознавании</span><strong>{{ record.original_name or 'Данные не сохранились' }}</strong>
+        <span>Текущая гипотеза распознавания</span><strong>{{ record.proposed_name }}</strong>
+        <p>{{ record.quality_notes or record.ocr_status }}</p>
+      </div>
+      {% if current %}
+        <div class="notice"><b>Сейчас в ассортименте:</b> {{current.medicine.name}} (код {{current.article_code}}). Если название ошибочное, одобренная сверка заменит эту запись.</div>
+      {% else %}<div class="notice"><b>В ассортименте сейчас нет такой записи.</b> Она появится только после ручного подтверждения.</div>{% endif %}
+      <form method="post" action="/review/{{record.id}}/approve">
+        <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+        <label class="form-field">Код товара по фотографии
+          <input name="code" maxlength="80" required value="{{record.confirmed_code or record.article_code}}"></label>
+        <label class="form-field">Правильное название по фотографии
+          <input name="name" maxlength="350" required value="{{record.confirmed_name or record.proposed_name}}"></label>
+        <label class="form-field">Производитель
+          <input name="manufacturer" maxlength="300" value="{{record.confirmed_manufacturer if record.confirmed_manufacturer is not none else record.proposed_manufacturer}}"></label>
+        <label class="form-field">Примечание к исправлению
+          <textarea name="comment" rows="2" maxlength="1000" placeholder="Что исправлено и почему"></textarea></label>
+        <label class="review-check"><input type="checkbox" name="visually_checked" value="yes" required> Я сверил код и название непосредственно с оригинальной фотографией.</label>
+        <button class="btn btn-primary" type="submit" {% if not source %}disabled title="Сначала загрузите фото"{% endif %}>Подтвердить и обновить ассортимент</button>
+      </form>
+    </div>
+  </section>
+</div>
+<section class="panel information-panel">
+  <div class="panel-head"><h2>Исключить ошибочную запись</h2></div><div class="panel-body">
+    <p class="field-hint">Используй, если на снимке такой позиции нет либо её нельзя надёжно идентифицировать. Если товар уже находится в ассортименте под этим кодом, он будет удалён из соответствующего ящика.</p>
+    <form method="post" action="/review/{{record.id}}/exclude" class="review-exclusion-form">
+      <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+      <label class="form-field">Причина исключения <input type="text" name="reason" maxlength="1000" required placeholder="Например: исходная строка неразборчива"></label>
+      <label class="form-field">Введите ИСКЛЮЧИТЬ <input name="typed_confirmation" autocomplete="off" placeholder="ИСКЛЮЧИТЬ" required></label>
+      <button class="btn btn-danger" type="submit">Исключить из ассортимента</button>
+    </form>
+  </div>
+</section>
+<section class="panel information-panel">
+  <div class="panel-head"><h2>История ручных решений</h2></div>
+  <div class="mini-list">
+    {% for d in decisions %}<div class="mini-row"><div class="pill-icon">↺</div><div class="mini-copy"><b>{{'Подтверждено' if d.action == 'approved' else 'Исключено'}} · {{d.selected_name or d.previous_name}}</b><small>{{d.created_at.strftime('%d.%m.%Y %H:%M')}} · {{d.comment or 'Комментарий не указан'}}</small></div></div>
+    {% else %}<div class="empty-mini">Ручных решений пока нет.</div>{% endfor %}
+  </div>
+</section>
+{% endblock %}
