@@ -36,3 +36,26 @@ h1,h2,p{margin-top:0}h1{font-size:32px;line-height:1.2;letter-spacing:-.8px;marg
 .search-suggestions[hidden]{display:none}.search-result{display:flex;flex-direction:column;padding:11px 14px;border-bottom:1px solid #edf1f7;gap:4px}
 .search-result:last-child{border-bottom:0}.search-result:hover,.search-result:focus{background:#eef5ff}.search-result strong{font-size:13px}.search-result small{font-size:11px;color:#7f94aa}
 @media(max-width:660px){.search-with-filter{flex-wrap:wrap}.search-with-filter .search-input-wrap{flex:1;width:calc(100% - 60px)}.search-with-filter select{max-width:none;flex:1}}
+
+/* Quality-review workspace, PharmDesk v0.3 */
+.review-detail-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(340px,1fr);gap:18px;margin-bottom:20px;align-items:start}
+.review-image-container{padding:16px;background:#f2f6fb;max-height:740px;overflow:auto;text-align:center}
+.review-image-container a{display:block}.review-image-container img{width:100%;height:auto;max-width:850px;border-radius:7px;border:1px solid #d6e0ed;box-shadow:0 3px 10px #20406015}
+.review-original{display:grid;gap:7px;background:#f4f7fb;border:1px solid #e4ebf3;border-radius:11px;padding:16px;margin-bottom:22px}
+.review-original span{font-size:11px;color:#6e8094;font-weight:700;text-transform:uppercase;letter-spacing:.35px}
+.review-original strong{font-size:14px;line-height:1.55}.review-original p{font-size:12px;margin:2px 0 0}
+.review-chip{display:inline-block;border-radius:20px;font-size:11px;font-weight:700;padding:4px 9px;white-space:nowrap}
+.review-chip.good{color:#24745a;background:#e9f8f1}.review-chip.warn{color:#94651e;background:#fff2d9}.review-chip.blocked{color:#a1453b;background:#fcece8}
+.review-filters{display:flex;gap:11px;align-items:flex-end;flex-wrap:wrap}
+.review-filters label{font-size:12px;color:#64788e;font-weight:700;display:flex;flex-direction:column;gap:5px;flex:1;min-width:120px}
+.review-filters label:first-child{flex:2;min-width:220px}
+.review-filters input,.review-filters select{width:100%;background:white;padding:10px;border:1px solid #dce5f1;border-radius:9px;min-height:39px}
+.review-filters button{min-height:40px}
+.review-pages{display:flex;justify-content:center;align-items:center;gap:20px;padding:18px}.review-pages span{font-size:13px;color:#6e8094}
+.review-check{display:flex;gap:10px;align-items:start;margin:16px 0;font-size:13px;font-weight:600;color:#294e76}
+.review-check input{margin-top:4px;min-width:18px;min-height:18px}
+.review-exclusion-form{display:grid;grid-template-columns:1.5fr 1fr auto;gap:13px;align-items:end}
+.panel .form-field{margin-bottom:14px}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+@media(max-width:1080px){.review-detail-grid{grid-template-columns:1fr}.review-image-container{max-height:600px}}
+@media(max-width:720px){.review-exclusion-form{grid-template-columns:1fr}.review-filters label{min-width:100%}.review-image-container{max-height:430px}}
