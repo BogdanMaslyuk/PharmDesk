@@ -3,7 +3,7 @@
 {% block breadcrumb %}Управление{% endblock %}
 {% block content %}
 <div class="section-header"><div><div class="eyebrow">УПРАВЛЕНИЕ СИСТЕМОЙ</div><h1>Ассортимент и ящики</h1><p>Создавайте места хранения, редактируйте товарные позиции и загружайте файлы.</p></div></div>
-<div class="actions manage-actions"><a href="/manage/drawers/new" class="btn btn-primary">+ Новый ящик</a><a href="/manage/import" class="btn btn-white">↑ Массовый импорт Excel / CSV</a></div>
+<div class="actions manage-actions"><a href="/manage/drawers/new" class="btn btn-primary">+ Новый ящик</a><a href="/manage/import" class="btn btn-white">↑ Массовый импорт Excel / CSV</a><a href="/review" class="btn btn-white">✓ Проверить распознанные записи</a></div>
 <div class="two-col">
   <section class="panel"><div class="panel-head"><h2>Ящики в базе</h2><span class="counter">{{ drawers|length }}</span></div><div class="mini-list">
     {% for d in drawers %}
