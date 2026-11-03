@@ -5,7 +5,7 @@ import secrets
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from starlette.requests import Request
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .batch import ImportErrorUser, batch_import, MAX_BYTES
 from .database import get_db
-from .models import Drawer, InventoryEvent, Medicine, StockItem
+from .models import Drawer, InventoryEvent, Medicine, StockItem, ReviewRecord
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
@@ -166,6 +166,14 @@ def create_item(request: Request, number: int, csrf_token: str = Form(...),
         exists = db.scalar(select(StockItem).where(StockItem.drawer_id == drawer.id, StockItem.article_code == code))
         if exists is not None:
             raise ValueError(f"Код {code} уже есть в ящике №{number}.")
+        excluded = db.scalar(select(ReviewRecord).where(
+            ReviewRecord.drawer_number == number,
+            or_(ReviewRecord.article_code == code, ReviewRecord.confirmed_code == code),
+            ReviewRecord.state == "excluded",
+        ))
+        if excluded is not None:
+            raise ValueError("Эта позиция была исключена после проверки фото. "
+                             "Сначала подтвердите её повторно в разделе «Сверка данных».")
         medicine = _medicine(db, name, maker)
         item = StockItem(article_code=code, drawer=drawer, medicine=medicine, source="вручную")
         db.add(item)
@@ -202,6 +210,23 @@ def update_item(request: Request, item_id: int, csrf_token: str = Form(...),
         ))
         if duplicate is not None:
             raise ValueError(f"Код {code} уже есть в ящике №{drawer.number}.")
+        original_code = item.article_code
+        changed = (original_code != code or item.medicine.name != name
+                   or (item.medicine.manufacturer or "") != maker)
+        if changed:
+            verified = db.scalar(select(ReviewRecord).where(
+                ReviewRecord.drawer_number == drawer.number,
+                or_(ReviewRecord.article_code == original_code,
+                    ReviewRecord.confirmed_code == original_code),
+                ReviewRecord.state == "approved",
+            ))
+            if verified:
+                verified.state = "pending"
+                verified.confirmed_code = None
+                verified.confirmed_name = None
+                verified.confirmed_manufacturer = None
+                verified.checked_at = None
+                _event(db, "invalidate_review", f"Manual edit requires re-review: drawer {drawer.number}, code {original_code}")
         item.medicine = _medicine(db, name, maker)
         item.article_code = code
         _event(db, "update_item", f"Изменена позиция {code}: {name} (ящик №{drawer.number})")
