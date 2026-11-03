@@ -47,6 +47,20 @@ try {
         Write-Host "No local database found; nothing to back up."
     }
 
+    # Screenshot evidence is local, not tracked by Git. Preserve it together with
+    # the database when an update is performed.
+    $imageFolder = Join-Path $root "private_data\review_images"
+    if (Test-Path -LiteralPath $imageFolder) {
+        $images = @(Get-ChildItem -LiteralPath $imageFolder -File -ErrorAction Stop)
+        if ($images.Count -gt 0) {
+            $backupDirectory = Join-Path $root "backups"
+            New-Item -ItemType Directory -Path $backupDirectory -Force | Out-Null
+            $photoArchive = Join-Path $backupDirectory ("review_photos_" + (Get-Date -Format "yyyyMMdd_HHmmss") + "_" + $PID + ".zip")
+            Compress-Archive -LiteralPath $images.FullName -DestinationPath $photoArchive -CompressionLevel Optimal -ErrorAction Stop
+            Write-Host "Review photo backup: $photoArchive"
+        }
+    }
+
     Write-Host "[3/5] Updating application from GitHub..." -ForegroundColor Cyan
     & git pull --ff-only origin main
     if ($LASTEXITCODE -ne 0) {
