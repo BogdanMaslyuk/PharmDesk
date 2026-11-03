@@ -105,7 +105,7 @@ def import_rows(db: Session, raw_rows, drawer_number: int, drawer_name: str, *, 
                         ReviewRecord.article_code == code,
                         ReviewRecord.confirmed_code == code,
                     ),
-                    ReviewRecord.state.in_(("approved", "excluded")),
+                    or_(ReviewRecord.state.in_(("approved", "excluded")), ReviewRecord.checked_at.is_not(None)),
                 )
             )
             if manual is not None:
