@@ -135,7 +135,7 @@ async def upload(request: Request, kind: str, csrf_token: str = Form(...),
     finally:
         await file.close()
     # Avoid automatic stock changes. Redirect upload status to the queue with a message.
-    response = queue(request, db=db)
+    response = queue(request, q="", state="pending", priority=1, drawer=None, page_number=1, db=db)
     response.context["import_result"] = result
     response.context["import_error"] = error
     if error:
