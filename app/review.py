@@ -59,9 +59,24 @@ def _detail(request, db, record, error=None):
         select(ReviewDecision).where(ReviewDecision.review_id == record.id)
         .order_by(ReviewDecision.id.desc()).limit(12)
     ).all()
+    next_record = db.scalar(
+        select(ReviewRecord).where(
+            ReviewRecord.state == "pending",
+            ReviewRecord.priority.is_(True),
+            ReviewRecord.id > record.id,
+        ).order_by(ReviewRecord.id).limit(1)
+    )
+    if next_record is None:
+        next_record = db.scalar(
+            select(ReviewRecord).where(
+                ReviewRecord.state == "pending",
+                ReviewRecord.priority.is_(True),
+                ReviewRecord.id != record.id,
+            ).order_by(ReviewRecord.id).limit(1)
+        )
     return _render(request, "review_item.html",
                    record=record, source=source, current=current,
-                   decisions=decisions, error=error)
+                   decisions=decisions, error=error, next_record=next_record)
 
 
 def _human_string(value, maximum, field, required=True):
