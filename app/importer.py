@@ -3,9 +3,9 @@ import csv
 from datetime import datetime
 from pathlib import Path
 import re
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
-from .models import Drawer, Medicine, StockItem, Ingredient
+from .models import Drawer, Medicine, StockItem, Ingredient, ReviewRecord
 
 ALIASES = {
     'code': {'код', 'кодтовара', 'артикул', 'articlecode', 'sku'},
@@ -95,6 +95,22 @@ def import_rows(db: Session, raw_rows, drawer_number: int, drawer_name: str, *, 
             skipped += 1
             continue
         maker = str(row['manufacturer'] or '').strip()
+        # Once a person has verified a record against the screenshot,
+        # a later CSV import cannot silently revert it to obsolete OCR text.
+        if not demo:
+            manual = db.scalar(
+                select(ReviewRecord).where(
+                    ReviewRecord.drawer_number == drawer_number,
+                    or_(
+                        ReviewRecord.article_code == code,
+                        ReviewRecord.confirmed_code == code,
+                    ),
+                    ReviewRecord.state.in_(("approved", "excluded")),
+                )
+            )
+            if manual is not None:
+                skipped += 1
+                continue
         fingerprint = f'{name.casefold()}::{maker.casefold()}'
         medicine = db.scalar(select(Medicine).where(Medicine.fingerprint == fingerprint))
         if medicine is None:
