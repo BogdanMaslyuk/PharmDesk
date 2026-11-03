@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Сверка ассортимента{% endblock %}
+{% block breadcrumb %}Сверка фотографий{% endblock %}
+{% block content %}
+<div class="section-header">
+  <div><div class="eyebrow">КОНТРОЛЬ КАЧЕСТВА ДАННЫХ</div>
+  <h1>Сверка ассортимента</h1>
+  <p>Проверяйте названия по оригинальным фотографиям. Совпадение двух распознаваний не является подтверждением человеком.</p></div>
+</div>
+<div class="stat-grid">
+  <div class="stat"><div class="stat-title">Ожидают проверки <span>⌕</span></div><div class="stat-value">{{ counts.pending }}</div><div class="stat-desc">все записи без ручного решения</div></div>
+  <div class="stat"><div class="stat-title">Сомнительные <span>!</span></div><div class="stat-value">{{ counts.priority }}</div><div class="stat-desc">проверить в первую очередь</div></div>
+  <div class="stat"><div class="stat-title">Подтверждено <span>✓</span></div><div class="stat-value">{{ counts.approved }}</div><div class="stat-desc">сверены вручную с фото</div></div>
+</div>
+{% if import_error %}<div class="form-error" role="alert">{{ import_error }}</div>{% endif %}
+{% if import_result %}<div class="notice"><strong>Загрузка завершена.</strong>
+{% if import_result.total_in_file is defined %}
+В книге {{ import_result.total_in_file }} записей; сомнительных {{ import_result.high_priority }}; новых {{ import_result.created }}; обновлено ожидающих {{ import_result.updated_pending }}; сохранено ручных решений {{ import_result.preserved_manual_decisions }}.
+{% else %}
+В архиве {{ import_result.in_archive }} изображений; добавлено {{ import_result.added }}; уже было {{ import_result.unchanged }}; конфликтов имён {{ import_result.conflicts }}.
+{% endif %}
+</div>{% endif %}
+<div class="two-col">
+  <section class="panel">
+    <div class="panel-head"><h2>1. Загрузить исправленную книгу Excel</h2></div>
+    <div class="panel-body">
+      <p class="field-hint">Нужен XLSX с листом <b>«Все позиции»</b>. Ожидаемые 1 433 строки, включая сомнительные. Загрузка только создаёт очередь и <b>не меняет ассортимент</b>.</p>
+      <form method="post" action="/review/upload/workbook" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="form-field">Файл Excel <input type="file" name="file" accept=".xlsx" required></label>
+        <button class="btn btn-primary" type="submit">Загрузить очередь проверки</button>
+      </form>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>2. Загрузить оригинальные фотографии</h2></div>
+    <div class="panel-body">
+      <p class="field-hint">Архив <b>«ЛС.zip»</b> с 60 исходными PNG. Снимки сохраняются только в локальной папке приложения — не на GitHub.</p>
+      <form method="post" action="/review/upload/images" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="form-field">Архив фотографий <input type="file" name="file" accept=".zip" required></label>
+        <button class="btn btn-white" type="submit">Добавить изображения</button>
+      </form>
+      <div class="field-hint" style="margin-top:12px">Фотографий в локальной базе: <b>{{ counts.photos }}</b></div>
+    </div>
+  </section>
+</div>
+<section class="panel">
+  <div class="panel-head"><div><h2>Очередь проверки</h2><p>Приоритет — строки с ошибками и низкой уверенностью.</p></div><span class="counter">{{ filtered_count }} строк</span></div>
+  <div class="panel-body">
+    <form action="/review" method="get" class="review-filters">
+      <label>Поиск <input type="search" name="q" value="{{ q }}" placeholder="Код или название"></label>
+      <label>Состояние <select name="state">
+        <option value="pending" {% if state == 'pending' %}selected{% endif %}>Ждут проверки</option>
+        <option value="approved" {% if state == 'approved' %}selected{% endif %}>Подтверждены</option>
+        <option value="excluded" {% if state == 'excluded' %}selected{% endif %}>Исключены</option>
+        <option value="all" {% if state == 'all' %}selected{% endif %}>Все</option>
+      </select></label>
+      <label>Приоритет <select name="priority">
+        <option value="1" {% if priority == 1 %}selected{% endif %}>Только сомнительные</option>
+        <option value="0" {% if priority == 0 %}selected{% endif %}>Все уровни</option>
+      </select></label>
+      <label>Ящик <select name="drawer"><option value="">Все</option>{% for n in drawers %}<option value="{{ n }}" {% if drawer == n %}selected{% endif %}>№{{ n }}</option>{% endfor %}</select></label>
+      <button class="btn btn-primary" type="submit">Показать</button>
+    </form>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Ящик</th><th>Код</th><th>Предложенное название (не подтверждено)</th><th>Оригинал</th><th>Статус</th><th></th></tr></thead>
+    <tbody>
+    {% for rec in rows %}
+      <tr>
+        <td><span class="drawer-label">№{{ rec.drawer_number }}</span></td>
+        <td class="code">{{ rec.article_code }}</td>
+        <td><a class="drug-name" href="/review/{{ rec.id }}">{{ rec.confirmed_name if rec.state == 'approved' else rec.proposed_name }}</a>
+            <div class="drug-substance">{{ rec.quality_notes or rec.ocr_status }}</div></td>
+        <td>{% if photo_presence[rec.id] %}<span class="review-chip good">Фото есть</span>{% else %}<span class="review-chip warn">Нет фото</span>{% endif %}
+            <small class="muted">{{ rec.source_file }} · строка {{ rec.source_row }}</small></td>
+        <td>{% if rec.state == 'approved' %}<span class="review-chip good">Подтверждено</span>
+            {% elif rec.state == 'excluded' %}<span class="review-chip blocked">Исключено</span>
+            {% else %}<span class="review-chip warn">Не проверено</span>{% endif %}</td>
+        <td><a class="text-link" href="/review/{{ rec.id }}">Сверить ↗</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="empty-cell">Записей нет. Загрузите исправленную книгу или измените фильтры.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% if pages > 1 %}
+  <div class="review-pages">
+    {% if page_number > 1 %}<a class="btn btn-white" href="/review?state={{state}}&priority={{priority}}&drawer={{drawer or ''}}&q={{q|urlencode}}&page_number={{page_number-1}}">← Назад</a>{% endif %}
+    <span>Страница {{page_number}} / {{pages}}</span>
+    {% if page_number < pages %}<a class="btn btn-white" href="/review?state={{state}}&priority={{priority}}&drawer={{drawer or ''}}&q={{q|urlencode}}&page_number={{page_number+1}}">Вперёд →</a>{% endif %}
+  </div>{% endif %}
+</section>
+<div class="notice"><b>Важно:</b> подтверждение означает только ручную сверку товарной записи с фото, не подтверждает безопасность, регистрацию, наличие на складе или фармакологические свойства препарата.</div>
+{% endblock %}
