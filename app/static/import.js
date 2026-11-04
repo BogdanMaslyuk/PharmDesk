@@ -24,7 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const summary = document.createElement('p');
     summary.textContent = 'Строк: ' + data.rows + ' · Ящиков: ' + data.drawers
       + ' · Новых: ' + data.created + ' · Обновится: ' + data.updated
-      + ' · Пропущено: ' + data.skipped;
+      + ' · Пропущено: ' + data.skipped
+      + ' · Защищено от старого импорта: ' + (data.protected || 0);
     report.appendChild(summary);
 
     if (data.errors && data.errors.length) {
