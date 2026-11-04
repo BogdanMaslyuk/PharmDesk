@@ -45,6 +45,32 @@
     </div>
   </section>
 </div>
+<section class="panel review-progress-panel" aria-label="Прогресс сверки по ящикам">
+  <details>
+    <summary class="review-progress-summary">
+      <strong>Прогресс проверки по ящикам</strong>
+      <span>{{ counts.done }} из {{ counts.all }} решений · {{ counts.percent }}% завершено</span>
+      <span class="review-progress-hint">Нажмите, чтобы показать все ящики</span>
+    </summary>
+    <div class="table-wrap">
+      <table class="review-progress-table">
+        <thead><tr><th>Ящик</th><th>Всего</th><th>Подтверждено</th><th>Ожидает</th><th>Исключено</th><th>Проверено</th><th></th></tr></thead>
+        <tbody>
+          {% for row in progress %}
+          <tr>
+            <td><a class="text-link" href="/review?drawer={{ row.drawer }}&state=all&priority=0">№{{ row.drawer }}</a></td>
+            <td>{{ row.total }}</td><td>{{ row.approved }}</td>
+            <td>{{ row.pending }}{% if row.priority %} <span class="review-chip warn">{{ row.priority }} сомн.</span>{% endif %}</td>
+            <td>{{ row.excluded }}</td>
+            <td class="review-progress-cell"><progress max="{{ row.total }}" value="{{ row.done }}" aria-label="Ящик №{{ row.drawer }}: проверено {{ row.percent }} процентов"></progress><small>{{ row.percent }}%</small></td>
+            <td><a class="text-link" href="/review?drawer={{ row.drawer }}&state=pending&priority=0">К проверке ↗</a></td>
+          </tr>
+          {% else %}<tr><td colspan="7">Загрузите книгу сверки, чтобы видеть прогресс.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</section>
 <section class="panel">
   <div class="panel-head"><div><h2>Очередь проверки</h2><p>Приоритет — строки с ошибками и низкой уверенностью.</p></div><span class="counter">{{ filtered_count }} строк</span></div>
   <div class="panel-body">
