@@ -222,9 +222,11 @@ def update_item(request: Request, item_id: int, csrf_token: str = Form(...),
             ))
             if verified:
                 verified.state = "pending"
-                verified.confirmed_code = None
+                # Lock the manually selected code until the screenshot is re-reviewed.
+                verified.confirmed_code = code
                 verified.confirmed_name = None
                 verified.confirmed_manufacturer = None
+                item.source = "вручную, требуется сверка"
                 # Keep the last review timestamp as an audit/import lock until re-reviewed.
                 _event(db, "invalidate_review", f"Manual edit requires re-review: drawer {drawer.number}, code {original_code}")
         item.medicine = _medicine(db, name, maker)
