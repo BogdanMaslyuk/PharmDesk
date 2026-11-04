@@ -85,7 +85,7 @@ def import_rows(db: Session, raw_rows, drawer_number: int, drawer_name: str, *, 
         db.flush()
     elif drawer_name and drawer_name != 'Без названия':
         drawer.name = drawer_name
-    created = updated = skipped = 0
+    created = updated = skipped = protected = 0
     for raw in raw_rows:
         row = _row_dict(raw)
         code_value = row['code']
@@ -110,6 +110,7 @@ def import_rows(db: Session, raw_rows, drawer_number: int, drawer_name: str, *, 
             )
             if manual is not None:
                 skipped += 1
+                protected += 1
                 continue
         fingerprint = f'{name.casefold()}::{maker.casefold()}'
         medicine = db.scalar(select(Medicine).where(Medicine.fingerprint == fingerprint))
@@ -141,4 +142,4 @@ def import_rows(db: Session, raw_rows, drawer_number: int, drawer_name: str, *, 
         db.commit()
     else:
         db.flush()
-    return {'created': created, 'updated': updated, 'skipped': skipped}
+    return {'created': created, 'updated': updated, 'skipped': skipped, 'protected': protected}
