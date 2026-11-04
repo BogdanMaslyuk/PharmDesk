@@ -309,7 +309,7 @@ async def import_upload(request: Request, action: str,
             raise ImportErrorUser("Файл слишком большой. Максимум 4 МБ.")
         result = batch_import(db, raw, file.filename or "", drawer_num, title, preview=action == "preview")
         if action == "apply" and result["created"] + result["updated"]:
-            _event(db, "batch_import", f"Импорт {file.filename}: {result['created']} новых, {result['updated']} обновлённых, {result['drawers']} ящиков")
+            _event(db, "batch_import", f"Импорт {file.filename}: {result['created']} новых, {result['updated']} обновлённых, {result.get('protected', 0)} защищено, {result['drawers']} ящиков")
             db.commit()
         return result
     except (ValueError, ImportErrorUser) as exc:
