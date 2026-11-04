@@ -1,108 +1,118 @@
-# PharmDesk local Git updater (Windows PowerShell 5.1+).
-# Run only after closing the local PharmDesk server.
+﻿# Safely update PharmDesk from the public GitHub repository.
+# Existing inventory and review photos remain exclusively on this computer.
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+function Test-LocalServer {
+    $client = New-Object System.Net.Sockets.TcpClient
+    $connection = $null
+    try {
+        $connection = $client.BeginConnect("127.0.0.1", 8000, $null, $null)
+        if (-not $connection.AsyncWaitHandle.WaitOne(350)) { return $false }
+        $client.EndConnect($connection)
+        return $true
+    } catch { return $false }
+    finally {
+        if ($null -ne $connection) { $connection.AsyncWaitHandle.Close() }
+        $client.Close()
+    }
+}
 
 try {
     $root = Split-Path -Parent $MyInvocation.MyCommand.Path
     Set-Location -LiteralPath $root
+    $env:PYTHONUTF8 = "1"
+    try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
 
-    Write-Host "[1/5] Checking Git..." -ForegroundColor Cyan
+    Write-Host "[1/5] Проверка Git и работающего сервера..." -ForegroundColor Cyan
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        throw "Git is not installed or not in PATH. Install Git for Windows and reopen the terminal."
+        throw "Git не установлен. Установите Git for Windows."
     }
     if (-not (Test-Path -LiteralPath (Join-Path $root ".git"))) {
-        throw "This directory is not a Git clone. Clone the repo first, then run the updater from the cloned directory."
+        throw "Это не папка Git. Откройте PharmDesk-git."
     }
-
     $origin = (& git remote get-url origin 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or $origin -notmatch 'github\.com[:/]BogdanMaslyuk/PharmDesk(\.git)?$') {
-        throw "Unexpected Git origin. Expected BogdanMaslyuk/PharmDesk; refusing to update another repository."
+        throw "Неверный репозиторий GitHub; обновление отменено."
     }
-
     $branch = (& git branch --show-current 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or $branch -ne "main") {
-        throw "Switch to the main branch before updating."
+        throw "Для обновления перейдите на ветку main; автоматического переключения нет."
+    }
+    $changes = @(& git status --porcelain --untracked-files=no)
+    if ($LASTEXITCODE -ne 0) { throw "Не удалось проверить изменения Git." }
+    if ($changes.Count -gt 0) {
+        $changes | ForEach-Object { Write-Host $_ -ForegroundColor Yellow }
+        throw "Есть локальные изменения кода. Они не будут удалены или перезаписаны."
+    }
+    if (Test-LocalServer) {
+        throw "Порт 8000 занят. Остановите PharmDesk через Ctrl+C и повторите обновление."
     }
 
-    $trackedChanges = @(& git status --porcelain --untracked-files=no)
-    if ($LASTEXITCODE -ne 0) { throw "Could not check Git status." }
-    if ($trackedChanges.Count -gt 0) {
-        Write-Host "Tracked files have local changes:" -ForegroundColor Yellow
-        $trackedChanges | ForEach-Object { Write-Host $_ }
-        throw "Update cancelled. Save/commit your code changes first; nothing was discarded."
-    }
-
-    Write-Host "[2/5] Backing up the local database..." -ForegroundColor Cyan
+    Write-Host "[2/5] Резервное копирование локальных данных..." -ForegroundColor Cyan
+    $pythonPath = Join-Path $root ".venv\Scripts\python.exe"
     $dbPath = Join-Path $root "pharmdesk.sqlite3"
-    if (Test-Path -LiteralPath $dbPath) {
-        $backupDirectory = Join-Path $root "backups"
-        New-Item -ItemType Directory -Path $backupDirectory -Force | Out-Null
-        $backupName = "pharmdesk_" + (Get-Date -Format "yyyyMMdd_HHmmss") + "_" + $PID + ".sqlite3"
-        $backupPath = Join-Path $backupDirectory $backupName
-        Copy-Item -LiteralPath $dbPath -Destination $backupPath -ErrorAction Stop
-        Write-Host "Database backup: $backupPath"
-    }
-    else {
-        Write-Host "No local database found; nothing to back up."
-    }
-
-    # Screenshot evidence is local, not tracked by Git. Preserve it together with
-    # the database when an update is performed.
-    $imageFolder = Join-Path $root "private_data\review_images"
-    if (Test-Path -LiteralPath $imageFolder) {
-        $images = @(Get-ChildItem -LiteralPath $imageFolder -File -ErrorAction Stop)
-        if ($images.Count -gt 0) {
-            $backupDirectory = Join-Path $root "backups"
-            New-Item -ItemType Directory -Path $backupDirectory -Force | Out-Null
-            $photoArchive = Join-Path $backupDirectory ("review_photos_" + (Get-Date -Format "yyyyMMdd_HHmmss") + "_" + $PID + ".zip")
-            Compress-Archive -LiteralPath $images.FullName -DestinationPath $photoArchive -CompressionLevel Optimal -ErrorAction Stop
-            Write-Host "Review photo backup: $photoArchive"
+    $needsBackup = (Test-Path -LiteralPath $dbPath) -or (-not [string]::IsNullOrWhiteSpace($env:DATABASE_URL))
+    if ($needsBackup) {
+        if (Test-Path -LiteralPath $pythonPath) {
+            & $pythonPath -X utf8 -m app.maintenance backup
         }
+        elseif (Get-Command py -ErrorAction SilentlyContinue) {
+            & py -3 -X utf8 -m app.maintenance backup
+        }
+        elseif (Get-Command python -ErrorAction SilentlyContinue) {
+            & python -X utf8 -m app.maintenance backup
+        }
+        else {
+            throw "Не найден Python, необходимый для создания резервной копии."
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "Резервная копия не создана. Загрузка обновлений отменена."
+        }
+    } else {
+        Write-Host "База отсутствует — резервное копирование не требуется."
     }
 
-    Write-Host "[3/5] Updating application from GitHub..." -ForegroundColor Cyan
+    Write-Host "[3/5] Получение обновлений из GitHub..." -ForegroundColor Cyan
     & git pull --ff-only origin main
     if ($LASTEXITCODE -ne 0) {
-        throw "Git pull failed. Local data was not deleted. See the Git message above."
+        throw "Git не смог безопасно обновить код. Локальные файлы не сбрасывались."
     }
 
-    Write-Host "[4/5] Checking Python environment..." -ForegroundColor Cyan
-    $pythonPath = Join-Path $root ".venv\Scripts\python.exe"
+    Write-Host "[4/5] Проверка среды Python и библиотек..." -ForegroundColor Cyan
     if (-not (Test-Path -LiteralPath $pythonPath)) {
         if (Get-Command py -ErrorAction SilentlyContinue) {
             & py -3 -m venv ".venv"
-            if ($LASTEXITCODE -ne 0) { throw "Unable to create Python environment." }
         }
         elseif (Get-Command python -ErrorAction SilentlyContinue) {
             & python -m venv ".venv"
-            if ($LASTEXITCODE -ne 0) { throw "Unable to create Python environment." }
         }
         else {
-            throw "Python not found. Install Python 3.11+ and rerun the updater."
+            throw "Python не установлен. Требуется версия 3.11 или новее."
         }
+        if ($LASTEXITCODE -ne 0) { throw "Не удалось создать среду Python." }
     }
 
     & $pythonPath -m pip install -r "requirements.txt"
     if ($LASTEXITCODE -ne 0) {
-        throw "Dependency installation failed. Check your network and Python installation."
+        throw "Не удалось установить библиотеки Python."
     }
 
-    Write-Host "[5/5] Running automated tests..." -ForegroundColor Cyan
-    & $pythonPath -m pytest -q
+    Write-Host "[5/5] Автоматические тесты..." -ForegroundColor Cyan
+    & $pythonPath -X utf8 -m pytest -q
     if ($LASTEXITCODE -ne 0) {
-        throw "Automated tests failed after update. Please report the output. The database backup is preserved."
+        throw "Тесты не прошли. Запускать программу до выяснения причины не рекомендуется."
     }
 
+    & $pythonPath -X utf8 -m app.maintenance version
     Write-Host ""
-    Write-Host "SUCCESS: PharmDesk code is up to date." -ForegroundColor Green
-    Write-Host "Your database was NOT replaced, and it was NOT uploaded to GitHub."
-    Write-Host "Next: run start-windows.bat and open http://127.0.0.1:8000"
+    Write-Host "Обновление завершено. База не заменена и не отправлена в GitHub." -ForegroundColor Green
+    Write-Host "Запуск: .\pharmdesk.bat или .\start-windows.bat"
     exit 0
 }
 catch {
     Write-Host ""
-    Write-Host ("UPDATE STOPPED: " + $_.Exception.Message) -ForegroundColor Red
-    Write-Host "No Git reset or forced update was performed."
+    Write-Host ("ОБНОВЛЕНИЕ ОСТАНОВЛЕНО: " + $_.Exception.Message) -ForegroundColor Red
+    Write-Host "Принудительного сброса Git и удаления базы не выполнялось."
     exit 1
 }

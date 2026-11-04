@@ -222,9 +222,11 @@ def update_item(request: Request, item_id: int, csrf_token: str = Form(...),
             ))
             if verified:
                 verified.state = "pending"
-                verified.confirmed_code = None
+                # Lock the manually selected code until the screenshot is re-reviewed.
+                verified.confirmed_code = code
                 verified.confirmed_name = None
                 verified.confirmed_manufacturer = None
+                item.source = "вручную, требуется сверка"
                 # Keep the last review timestamp as an audit/import lock until re-reviewed.
                 _event(db, "invalidate_review", f"Manual edit requires re-review: drawer {drawer.number}, code {original_code}")
         item.medicine = _medicine(db, name, maker)
@@ -307,7 +309,7 @@ async def import_upload(request: Request, action: str,
             raise ImportErrorUser("Файл слишком большой. Максимум 4 МБ.")
         result = batch_import(db, raw, file.filename or "", drawer_num, title, preview=action == "preview")
         if action == "apply" and result["created"] + result["updated"]:
-            _event(db, "batch_import", f"Импорт {file.filename}: {result['created']} новых, {result['updated']} обновлённых, {result['drawers']} ящиков")
+            _event(db, "batch_import", f"Импорт {file.filename}: {result['created']} новых, {result['updated']} обновлённых, {result.get('protected', 0)} защищено, {result['drawers']} ящиков")
             db.commit()
         return result
     except (ValueError, ImportErrorUser) as exc:

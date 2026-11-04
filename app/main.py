@@ -17,6 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .database import get_db, init_db
 from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord
 from .search import stock_matches, drawer_matches
+from .version import APP_VERSION
 
 HERE = Path(__file__).resolve().parent
 
@@ -30,7 +31,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title='PharmDesk — рабочее место фармацевта',
     description='Поиск по ящикам и локальному ассортименту. Не предназначено для медицинских решений.',
-    version='0.3.0',
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 app.add_middleware(SessionMiddleware, secret_key=os.getenv('PHARMDESK_SESSION_SECRET') or secrets.token_urlsafe(32), same_site='strict', https_only=False)
@@ -77,7 +78,7 @@ def drawer_detail(number: int, request: Request, q: str = Query('', max_length=1
     count = db.scalar(select(func.count(StockItem.id)).where(StockItem.drawer_id == drawer.id)) or 0
     quality = {}
     for record in db.scalars(select(ReviewRecord).where(ReviewRecord.drawer_number == number)).all():
-        code = record.confirmed_code if record.state == "approved" and record.confirmed_code else record.article_code
+        code = record.confirmed_code or record.article_code
         quality[code] = record
     return render(request, 'drawer.html', page='drawers', drawer=drawer, items=items, count=count, q=q, quality=quality)
 
@@ -151,7 +152,7 @@ def api_search(q: str = Query('', min_length=2, max_length=100), db: Session = D
 
 @app.get('/health')
 def health():
-    return {'status': 'ok', 'version': '0.3.0'}
+    return {'status': 'ok', 'version': APP_VERSION}
 
 # Include management routes after the public catalogue routes.
 from .manage import router as manage_router  # noqa: E402

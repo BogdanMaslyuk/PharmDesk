@@ -20,6 +20,7 @@ from .review_import import (
     ReviewImportError, image_key, import_images, import_reviews
 )
 from .search import matches
+from .review_progress import drawer_progress
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
@@ -46,7 +47,7 @@ def _current_stock(db, record):
     drawer = db.scalar(select(Drawer).where(Drawer.number == record.drawer_number))
     if drawer is None:
         return None
-    code = record.confirmed_code if record.state == "approved" and record.confirmed_code else record.article_code
+    code = record.confirmed_code or record.article_code
     return db.scalar(select(StockItem).where(
         StockItem.drawer_id == drawer.id, StockItem.article_code == code
     ))
@@ -104,6 +105,9 @@ def queue(request: Request, q: str = Query("", max_length=100),
         "excluded": sum(x.state == "excluded" for x in rows),
         "photos": db.scalar(select(func.count(SourceImage.id))) or 0,
     }
+    progress = drawer_progress(rows)
+    totals["done"] = totals["approved"] + totals["excluded"]
+    totals["percent"] = round(100 * totals["done"] / totals["all"]) if totals["all"] else 0
     filtered = [
         r for r in rows if
         (state == "all" or r.state == state) and
@@ -119,7 +123,7 @@ def queue(request: Request, q: str = Query("", max_length=100),
     photos = {x.name_key for x in db.scalars(select(SourceImage)).all()}
     photo_presence = {r.id: image_key(r.source_file) in photos for r in current}
     drawers = sorted({r.drawer_number for r in rows})
-    return _render(request, "review.html", rows=current, counts=totals,
+    return _render(request, "review.html", rows=current, counts=totals, progress=progress,
                    photo_presence=photo_presence, drawers=drawers, q=q,
                    state=state, priority=priority, drawer=drawer,
                    page_number=page_number, pages=pages, filtered_count=len(filtered),
@@ -200,7 +204,7 @@ def approve(record_id: int, request: Request, csrf_token: str = Form(...),
             drawer = Drawer(number=record.drawer_number, name=record.drawer_name)
             db.add(drawer)
             db.flush()
-        previous_code = record.confirmed_code if record.state == "approved" and record.confirmed_code else record.article_code
+        previous_code = record.confirmed_code or record.article_code
         old = db.scalar(select(StockItem).where(
             StockItem.drawer_id == drawer.id, StockItem.article_code == previous_code
         ))

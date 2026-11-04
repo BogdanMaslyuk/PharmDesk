@@ -59,3 +59,20 @@ h1,h2,p{margin-top:0}h1{font-size:32px;line-height:1.2;letter-spacing:-.8px;marg
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
 @media(max-width:1080px){.review-detail-grid{grid-template-columns:1fr}.review-image-container{max-height:600px}}
 @media(max-width:720px){.review-exclusion-form{grid-template-columns:1fr}.review-filters label{min-width:100%}.review-image-container{max-height:430px}}
+
+/* v0.3.1: source evidence and per-drawer verification progress. */
+.review-progress-panel{margin-bottom:20px}
+.review-progress-summary{display:flex;flex-wrap:wrap;align-items:center;gap:15px;padding:18px 22px;cursor:pointer}
+.review-progress-summary strong{font-size:16px}
+.review-progress-summary span{font-size:13px;color:var(--soft)}
+.review-progress-summary .review-progress-hint{margin-left:auto;font-size:11px}
+.review-progress-table td{vertical-align:middle}
+.review-progress-cell{min-width:150px}
+.review-progress-cell progress{appearance:auto;display:inline-block;width:100px;height:12px;vertical-align:middle;accent-color:var(--blue)}
+.review-progress-cell small{margin-left:9px;color:var(--soft);white-space:nowrap}
+.review-photo-tools{display:flex;align-items:center;justify-content:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.review-photo-tools button{min-width:39px;padding:7px 12px}
+.review-photo-tools span{font-size:13px;font-weight:700;min-width:48px;text-align:center}
+.review-image-container[data-review-viewport]{overflow:auto;max-height:740px;overscroll-behavior:contain;text-align:left}
+.review-image-container[data-review-viewport] img{display:block;max-width:none;margin:0;border-radius:7px}
+@media(max-width:760px){.review-progress-summary{gap:8px}.review-photo-tools{flex-wrap:wrap}.review-progress-summary .review-progress-hint{margin-left:0}}

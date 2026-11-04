@@ -3,6 +3,8 @@ on:
   push:
     paths:
       - 'update-windows.ps1'
+      - 'pharmdesk.ps1'
+      - 'pharmdesk.bat'
       - 'update-windows.bat'
       - 'setup-windows.bat'
       - 'start-windows.bat'
@@ -13,6 +15,8 @@ on:
   pull_request:
     paths:
       - 'update-windows.ps1'
+      - 'pharmdesk.ps1'
+      - 'pharmdesk.bat'
       - 'update-windows.bat'
       - 'setup-windows.bat'
       - 'start-windows.bat'
@@ -29,46 +33,47 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check PowerShell script grammar
-        shell: pwsh
+      - name: Check PowerShell syntax using Windows PowerShell 5.1
+        shell: powershell
         run: |
-          $tokens = $null
-          $errors = $null
-          $null = [System.Management.Automation.Language.Parser]::ParseFile(
-            (Join-Path $PWD "update-windows.ps1"),
-            [ref]$tokens,
-            [ref]$errors
-          )
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
+          foreach ($file in @("update-windows.ps1", "pharmdesk.ps1", "replace-inventory-windows.ps1")) {
+            $tokens = $null
+            $errors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $file),
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.Message }
+              throw "Invalid PowerShell syntax: $file"
+            }
+            Write-Host "PowerShell 5.1 syntax OK: $file"
           }
-          $null = [System.Management.Automation.Language.Parser]::ParseFile(
-            (Join-Path $PWD "replace-inventory-windows.ps1"),
-            [ref]$tokens,
-            [ref]$errors
-          )
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
+          foreach ($file in @("update-windows.ps1", "pharmdesk.ps1")) {
+            $bytes = [System.IO.File]::ReadAllBytes((Join-Path $PWD $file))
+            if ($bytes.Length -lt 3 -or $bytes[0] -ne 239 -or $bytes[1] -ne 187 -or $bytes[2] -ne 191) {
+              throw "Missing UTF-8 BOM for Windows PowerShell 5.1: $file"
+            }
           }
-          Write-Host "PowerShell syntax is valid."
       - name: Check batch file ASCII and Windows line endings
         shell: pwsh
         run: |
-          $bytes = [System.IO.File]::ReadAllBytes((Join-Path $PWD "update-windows.bat"))
-          if ($bytes | Where-Object { $_ -gt 127 }) {
-            throw "Windows batch wrapper must be ASCII-only."
+          foreach ($file in @("update-windows.bat", "pharmdesk.bat", "start-windows.bat")) {
+            $bytes = [System.IO.File]::ReadAllBytes((Join-Path $PWD $file))
+            if ($bytes | Where-Object { $_ -gt 127 }) {
+              throw "Windows batch wrapper must be ASCII-only: $file"
+            }
+            $content = [System.Text.Encoding]::ASCII.GetString($bytes)
+            if ($content -notmatch "`r`n") {
+              throw "Windows batch wrapper must have CRLF line endings: $file"
+            }
+            Write-Host "Batch file OK: $file"
           }
-          $content = [System.Text.Encoding]::ASCII.GetString($bytes)
-          if ($content -notmatch "`r`n") {
-            throw "Windows batch wrapper must have CRLF line endings."
-          }
-          Write-Host "Batch file format is valid."
       - name: Ensure Git checkout is clean and batch EOL rules are correct
         shell: pwsh
         run: |
-          $files = @("setup-windows.bat", "start-windows.bat", "update-windows.bat", "replace-inventory-windows.bat")
+          $files = @("setup-windows.bat", "start-windows.bat", "update-windows.bat", "replace-inventory-windows.bat", "pharmdesk.bat")
           $eol = @(& git ls-files --eol -- $files)
           if ($LASTEXITCODE -ne 0 -or $eol.Count -ne $files.Count) {
             throw "Could not check tracked batch files."

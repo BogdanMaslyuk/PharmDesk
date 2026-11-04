@@ -147,7 +147,7 @@ def import_reviews(db, raw):
                 record = ReviewRecord(**entry)
                 db.add(record)
                 created += 1
-            elif record.state != "pending":
+            elif record.state != "pending" or record.checked_at is not None:
                 kept += 1
             else:
                 for field, value in entry.items():
