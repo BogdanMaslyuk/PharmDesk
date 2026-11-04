@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Сверка {{ record.article_code }}{% endblock %}
+{% block title %}Сверка {{ record.article_code }}<script defer src="{{ url_for('static', path='/review-photo.js') }}"></script>
+{% endblock %}
 {% block breadcrumb %}<a href="/review">Сверка</a> / Ящик №{{ record.drawer_number }}{% endblock %}
 {% block content %}
 <div class="actions" style="margin-bottom:18px"><a class="btn btn-white" href="/review">← К очереди проверки</a>{% if next_record %}<a class="btn btn-primary" href="/review/{{next_record.id}}">Следующая сомнительная запись →</a>{% endif %}</div>
@@ -11,14 +12,22 @@
 <div class="review-detail-grid">
   <section class="panel">
     <div class="panel-head"><h2>Оригинальная фотография</h2>{% if source %}<a class="text-link" target="_blank" rel="noopener" href="/review/image/{{source.id}}">Открыть крупно ↗</a>{% endif %}</div>
-    <div class="review-image-container">
     {% if source %}
-      <a href="/review/image/{{source.id}}" target="_blank" rel="noopener"><img src="/review/image/{{source.id}}" alt="Оригинальный скриншот ящика №{{record.drawer_number}}, строка {{record.source_row}}" loading="lazy"></a>
+    <div class="review-photo-tools" role="group" aria-label="Масштаб фотографии">
+      <button class="btn btn-white" type="button" data-zoom-out aria-label="Уменьшить фотографию">−</button>
+      <span aria-live="polite" data-zoom-label>100%</span>
+      <button class="btn btn-white" type="button" data-zoom-in aria-label="Увеличить фотографию">+</button>
+      <button class="btn btn-white" type="button" data-zoom-reset>Исходный размер</button>
+    </div>
+    {% endif %}
+    <div class="review-image-container" {% if source %}data-review-viewport tabindex="0" aria-label="Оригинальный снимок с возможностью прокрутки"{% endif %}>
+    {% if source %}
+      <img data-review-photo src="/review/image/{{source.id}}" alt="Оригинальный скриншот ящика №{{record.drawer_number}}, строка {{record.source_row}}" loading="lazy">
     {% else %}
       <div class="info-placeholder">Исходное фото пока не загружено. Перейдите в раздел «Сверка» и загрузите архив «ЛС.zip».</div>
     {% endif %}
     </div>
-    <div class="panel-body"><p class="field-hint">Снимок целиком, без автоматической обрезки. Ищите строку №{{record.source_row}}. При необходимости откройте изображение в новой вкладке для увеличения.</p></div>
+    <div class="panel-body"><p class="field-hint">Снимок целиком. Используйте кнопки + / − и прокрутку для поиска строки №{{record.source_row}}. Кнопка «Открыть крупно» откроет оригинальный файл.</p></div>
   </section>
   <section class="panel">
     <div class="panel-head"><h2>Сверка товарной записи</h2></div>
