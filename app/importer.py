@@ -142,4 +142,7 @@ def import_rows(db: Session, raw_rows, drawer_number: int, drawer_name: str, *, 
         db.commit()
     else:
         db.flush()
-    return {'created': created, 'updated': updated, 'skipped': skipped, 'protected': protected}
+    outcome = {'created': created, 'updated': updated, 'skipped': skipped}
+    if protected:
+        outcome['protected'] = protected
+    return outcome
