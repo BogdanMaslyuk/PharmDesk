@@ -143,13 +143,14 @@ def prepare(raw: bytes, filename: str, default_drawer=None, default_name="Без
 def batch_import(db: Session, raw: bytes, filename: str, default_drawer=None,
                  default_name="Без названия", *, preview=True):
     groups, drawer_names, errors, total, valid = prepare(raw, filename, default_drawer, default_name)
-    created = updated = skipped = 0
+    created = updated = skipped = protected = 0
     try:
         for number, rows in groups.items():
             info = import_rows(db, rows, number, drawer_names[number], commit=False)
             created += info["created"]
             updated += info["updated"]
             skipped += info["skipped"]
+            protected += info.get("protected", 0)
         if preview:
             db.rollback()
         else:
@@ -160,7 +161,7 @@ def batch_import(db: Session, raw: bytes, filename: str, default_drawer=None,
     return {
         "mode": "preview" if preview else "applied",
         "rows": total, "valid": valid, "created": created, "updated": updated,
-        "skipped": skipped + len(errors), "drawers": len(groups),
+        "skipped": skipped + len(errors), "protected": protected, "drawers": len(groups),
         "errors": errors[:30], "more_errors": max(0, len(errors) - 30),
         "message": "Предпросмотр: изменения не сохранены." if preview else "Импорт завершён.",
     }
