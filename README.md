@@ -1,8 +1,32 @@
 # PharmDesk — рабочее место фармацевта
 
-**PharmDesk v0.3.0** — локальное веб-приложение для навигации по аптечным ящикам, поиска товаров и формирования основы лекарственного справочника.
+**PharmDesk v0.3.1** — локальное веб-приложение для навигации по аптечным ящикам, поиска товаров и формирования основы лекарственного справочника.
 
 Это ранний технический прототип. Он не является системой назначения лечения и **не проводит проверку лекарственных взаимодействий**.
+
+## Версия 0.3.1: безопасная работа через PowerShell
+
+Для ежедневной работы рекомендуем одно меню:
+
+    cd "$env:USERPROFILE\Desktop\PharmDesk-git"
+    .\pharmdesk.bat
+
+Откроются команды запуска, обновления из GitHub, резервного копирования,
+диагностики SQLite и тестирования. **Обязательно остановите запущенный
+сервер перед обновлением.** Прямое выполнение .ps1 может блокироваться
+политикой Windows, поэтому предусмотрен .bat-файл.
+
+При обновлении с v0.3.1 перед загрузкой изменений автоматически
+создаётся **проверенный ZIP с согласованной копией SQLite, исходными
+фотографиями и контрольными суммами SHA-256**. Архив хранится только
+локально в backups/ и не зашифрован: не публикуйте его.
+
+В разделе «Сверка данных» теперь видны проценты проверки для каждого
+ящика и доступно увеличение фотографий кнопками. При импорте старого
+CSV отдельно показывается, сколько записей защищено ручной проверкой.
+
+[Подробная инструкция для Windows](docs/windows-ops.md).
+[План фармакологического справочника v0.4](docs/v0.4-catalog-plan.md).
 
 ## Что работает
 
@@ -45,7 +69,7 @@ directory, and double-click **`update-windows.bat`**. This wrapper calls
 
 1. Verify that this is the intended GitHub repository on branch `main`,
    and refuse to overwrite local edits to tracked code.
-2. Copy the local SQLite database to `backups/` if it exists.
+2. Create a consistent, verified SQLite+photos backup in `backups/` if local data exists.
 3. Run `git pull --ff-only origin main` (no reset, force or destructive merge).
 4. Set up the local Python environment if missing, then install dependencies.
 5. Run automated tests.
