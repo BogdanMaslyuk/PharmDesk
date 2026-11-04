@@ -208,3 +208,77 @@ def test_drug_identity_is_only_manually_sourced(environment):
     }, follow_redirects=False)
     assert ok.status_code == 303
     assert db.scalar(select(func.count(SubstanceEvidence.id))) == 1
+
+
+def test_manual_code_edit_requires_recheck_and_stays_locked(environment):
+    client, db, token, _ = environment
+    from app.importer import import_rows
+    from app.review_import import import_reviews
+    upload(client, token, "workbook", "review.xlsx", workbook())
+    upload(client, token, "images", "originals.zip", photos())
+    rec = db.scalar(select(ReviewRecord).where(ReviewRecord.article_code == "417157"))
+    ok = client.post(f"/review/{rec.id}/approve", data={
+        "csrf_token": token, "code": "417157", "name": "Валз",
+        "manufacturer": "Изготовитель", "visually_checked": "yes",
+    }, follow_redirects=False)
+    assert ok.status_code == 303
+    item = db.scalar(select(StockItem))
+    changed = client.post(f"/manage/items/{item.id}/edit", data={
+        "csrf_token": token, "article_code": "417158",
+        "name": "Валз — ручное изменение", "manufacturer": "Изготовитель",
+    }, follow_redirects=False)
+    assert changed.status_code == 303
+    db.refresh(rec)
+    assert rec.state == "pending"
+    assert rec.confirmed_code == "417158"
+    assert rec.checked_at is not None
+    assert db.scalar(select(StockItem)).source == "вручную, требуется сверка"
+
+    old = import_rows(db, [{
+        "Код": "417157", "Наименование товара": "Bans 160 мг",
+        "Производитель": "Изготовитель",
+    }], 13, "Сартаны (по рецепту)")
+    new = import_rows(db, [{
+        "Код": "417158", "Наименование товара": "Kapaocan",
+        "Производитель": "Изготовитель",
+    }], 13, "Сартаны (по рецепту)")
+    assert old["protected"] == 1
+    assert new["protected"] == 1
+    assert db.scalar(select(func.count(StockItem.id))) == 1
+    assert db.scalar(select(StockItem)).medicine.name == "Валз — ручное изменение"
+
+    again = import_reviews(db, workbook("Bans"))
+    assert again["preserved_manual_decisions"] == 1
+    db.refresh(rec)
+    assert rec.confirmed_code == "417158"
+    assert rec.state == "pending"
+
+    reapproved = client.post(f"/review/{rec.id}/approve", data={
+        "csrf_token": token, "code": "417158",
+        "name": "Валз — перепроверен по фото",
+        "manufacturer": "Изготовитель", "visually_checked": "yes",
+    }, follow_redirects=False)
+    assert reapproved.status_code == 303
+    db.refresh(rec)
+    assert rec.state == "approved"
+    assert db.scalar(select(StockItem)).medicine.name == "Валз — перепроверен по фото"
+
+
+def test_review_page_reports_drawer_progress_and_photo_zoom(environment):
+    client, db, token, _ = environment
+    upload(client, token, "workbook", "review.xlsx", workbook())
+    page = client.get("/review")
+    assert page.status_code == 200
+    assert "Прогресс проверки по ящикам" in page.text
+    assert '№13' in page.text
+    assert "2" in page.text
+
+    rec = db.scalar(select(ReviewRecord).where(ReviewRecord.article_code == "417157"))
+    item_page = client.get(f"/review/{rec.id}")
+    assert item_page.status_code == 200
+    assert "Исходный размер" not in item_page.text
+    upload(client, token, "images", "originals.zip", photos())
+    item_page = client.get(f"/review/{rec.id}")
+    assert "Исходный размер" in item_page.text
+    assert "data-review-photo" in item_page.text
+    assert "/static/review-photo.js" in item_page.text
