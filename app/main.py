@@ -77,7 +77,7 @@ def drawer_detail(number: int, request: Request, q: str = Query('', max_length=1
     count = db.scalar(select(func.count(StockItem.id)).where(StockItem.drawer_id == drawer.id)) or 0
     quality = {}
     for record in db.scalars(select(ReviewRecord).where(ReviewRecord.drawer_number == number)).all():
-        code = record.confirmed_code if record.state == "approved" and record.confirmed_code else record.article_code
+        code = record.confirmed_code or record.article_code
         quality[code] = record
     return render(request, 'drawer.html', page='drawers', drawer=drawer, items=items, count=count, q=q, quality=quality)
 
