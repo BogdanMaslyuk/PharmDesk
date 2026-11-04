@@ -47,7 +47,7 @@ def _current_stock(db, record):
     drawer = db.scalar(select(Drawer).where(Drawer.number == record.drawer_number))
     if drawer is None:
         return None
-    code = record.confirmed_code if record.state == "approved" and record.confirmed_code else record.article_code
+    code = record.confirmed_code or record.article_code
     return db.scalar(select(StockItem).where(
         StockItem.drawer_id == drawer.id, StockItem.article_code == code
     ))
@@ -204,7 +204,7 @@ def approve(record_id: int, request: Request, csrf_token: str = Form(...),
             drawer = Drawer(number=record.drawer_number, name=record.drawer_name)
             db.add(drawer)
             db.flush()
-        previous_code = record.confirmed_code if record.state == "approved" and record.confirmed_code else record.article_code
+        previous_code = record.confirmed_code or record.article_code
         old = db.scalar(select(StockItem).where(
             StockItem.drawer_id == drawer.id, StockItem.article_code == previous_code
         ))
