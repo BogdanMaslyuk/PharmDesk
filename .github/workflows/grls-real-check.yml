@@ -1,0 +1,24 @@
+name: Real GRLS archive parser validation
+on:
+  push:
+    branches: [feature/v0.4.2-official-direct-download]
+    paths:
+      - 'scripts/check_actual_grls_import.py'
+      - '.github/workflows/grls-real-check.yml'
+      - 'app/grls_import.py'
+      - 'app/grls_fetch.py'
+permissions:
+  contents: read
+jobs:
+  real-grls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install requirements
+        run: pip install -r requirements.txt
+      - name: Validate full public GRLS ZIP without storing data
+        run: python -m scripts.check_actual_grls_import
