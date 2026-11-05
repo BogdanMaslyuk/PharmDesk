@@ -1,27 +1,27 @@
-"""Inspect public GRLS download controls, never save source content."""
+"""Probe official GRLS dynamically generated ZIP link, read only first bytes."""
+import http.cookiejar
 import re
-from html.parser import HTMLParser
-from urllib.request import Request, urlopen
+import urllib.request
+from urllib.parse import urljoin
 
-class Links(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.links = []
-    def handle_starttag(self, tag, attrs):
-        a = dict(attrs)
-        if tag in ("a", "form", "script", "link", "button", "input"):
-            self.links.append((tag, a))
-
-url = "https://grls.minzdrav.gov.ru/grls.aspx"
-response = urlopen(Request(url, headers={"User-Agent":"Mozilla/5.0"}), timeout=16)
-page = response.read().decode("utf-8", "replace")
-print("PAGE", response.status, len(page), "bytes")
-parser = Links()
-parser.feed(page)
-print("LINKS",len(parser.links))
-for tag,attrs in parser.links:
-    if tag in ("a","form","script","link"):
-        print("NODE",tag," ".join(f"{k}={v}" for k,v in attrs.items())[:300])
-for i,line in enumerate(page.splitlines()):
-    if re.search(r"zip|download|export|xls|выгруз|скач|архив|GetFile|FileDownload|Reestr|Upload|File",line,re.I):
-        print("RAW",i,line.strip()[:450])
+page_url="https://grls.minzdrav.gov.ru/grls.aspx"
+opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+page=opener.open(urllib.request.Request(page_url,headers={"User-Agent":"Mozilla/5.0"}),timeout=16).read().decode("utf-8","replace")
+result=re.search(r"GetGRLS\.ashx\?FileGUID=[0-9a-f-]+&amp;UserReq=\d+|GetGRLS\.ashx\?FileGUID=[0-9a-f-]+&UserReq=\d+",page,re.I)
+print("OFFICIAL_LINK_FOUND",bool(result),flush=True)
+if result:
+ url=urljoin(page_url,result.group().replace("&amp;","&"))
+ print("OFFICIAL_ENDPOINT",url,flush=True)
+ req=urllib.request.Request(url,headers={
+   "User-Agent":"Mozilla/5.0",
+   "Referer":page_url,
+   "Accept":"application/zip,application/octet-stream,*/*"
+ })
+ try:
+  with opener.open(req,timeout=18) as response:
+   head=response.read(32)
+   print("ARCHIVE_STATUS",response.status,"MIME",response.headers.get("Content-Type"),
+      "BYTES",response.headers.get("Content-Length"),
+      "MAGIC",head[:8].hex(), "ZIP",head.startswith(b"PK"),flush=True)
+ except Exception as e:
+  print("ARCHIVE_ERROR",type(e).__name__,str(e)[:400],flush=True)
