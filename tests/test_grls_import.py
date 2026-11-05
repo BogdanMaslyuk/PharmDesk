@@ -242,3 +242,49 @@ def test_archived_expired_snapshot_is_imported_only_as_historical(env):
     batch = db.scalar(select(GrlsImportBatch))
     assert batch.snapshot_on == old_date
     assert "Снимок старше 30 дней" in client.get("/catalog/grls").text
+
+
+def test_source_candidate_requires_exact_reg_and_trade_then_checks_form_strength(env):
+    client, db, csrf, medicine_id, _ = env
+    raw = archive()
+    assert preview(client, csrf, raw).status_code == 200
+    assert confirm(client, csrf, raw).status_code == 303
+    candidate = db.scalar(select(GrlsImportRow).where(GrlsImportRow.trade_key == "валз"))
+    target = f"/medicines/{medicine_id}/registry"
+    form = {
+        "csrf_token": csrf, "candidate_id": candidate.id,
+        "registration_number": candidate.registration_number,
+        "trade_name": candidate.trade_name,
+        "dosage_form": "таблетки", "strength_text": "160 мг",
+        "manufacturer": "Учебный завод",
+        "substances": "Валсартан",
+        "source_url": "https://grls.rosminzdrav.ru/Default.aspx?id=source-record",
+        "comparison_note": "",
+        "source_checked": "yes", "product_checked": "yes",
+    }
+    invalid_num = dict(form, registration_number="ЛП-000007")
+    denied = client.post(target, data=invalid_num)
+    assert denied.status_code == 200
+    assert "Номер регистрационного удостоверения не совпадает" in denied.text
+    assert db.scalar(select(func.count(RegisteredProduct.id))) == 0
+
+    invalid_name = dict(form, trade_name="Валз-комби")
+    denied = client.post(target, data=invalid_name)
+    assert "Торговое название не совпадает" in denied.text
+    assert db.scalar(select(func.count(RegisteredProduct.id))) == 0
+
+    uncertain = dict(form, strength_text="80 мг")
+    denied = client.post(target, data=uncertain)
+    assert "дозировка не найдена точно" in denied.text or "дозировка не найдена" in denied.text or "дозировка" in denied.text
+    assert db.scalar(select(func.count(RegisteredProduct.id))) == 0
+
+    valid = client.post(target, data=form, follow_redirects=False)
+    assert valid.status_code == 303
+    assert db.scalar(select(func.count(RegisteredProduct.id))) == 1
+    assert db.scalar(select(func.count(MedicineRegistrationLink.id))) == 1
+    link = db.scalar(select(MedicineRegistrationLink))
+    assert "SHA-256" in link.comparison_note
+    assert f"строка {candidate.source_row}" in link.comparison_note
+    stock = db.scalar(select(StockItem))
+    assert stock.article_code == "TEST-160"
+    assert stock.medicine.name == "Валз таб. 160 мг"
