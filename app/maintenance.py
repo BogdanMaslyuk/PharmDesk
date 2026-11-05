@@ -25,7 +25,7 @@ REQUIRED_TABLES = (
     "review_decisions", "source_images", "inventory_events",
     "substance_evidence",
     "registered_products", "registered_substances",
-    "registered_compositions", "medicine_registration_links",
+    "registered_compositions", "medicine_registration_links", "registry_link_events",
 )
 
 
