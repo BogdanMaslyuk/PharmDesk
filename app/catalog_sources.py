@@ -11,9 +11,9 @@ from .search import normalize
 
 OFFICIAL_HOSTS = {
     "grls.rosminzdrav.ru": "ГРЛС Минздрава России",
-    "grls.minzdrav.gov.ru": "ГРЛС Минздрава России (ранее использовавшийся адрес)",
     "pharma.eaeunion.org": "Реестр лекарственных средств ЕАЭС",
 }
+LEGACY_HOSTS = {"grls.minzdrav.gov.ru": "Прежний адрес, сохранённый для старых заметок"}
 SOURCE_LANDING = {
     "grls.rosminzdrav.ru": ("/", "/default.aspx", "/grls.aspx"),
     "grls.minzdrav.gov.ru": ("/",),
@@ -25,7 +25,7 @@ class CatalogValidationError(ValueError):
     pass
 
 
-def safe_official_url(raw, *, specific=True):
+def safe_official_url(raw, *, specific=True, allow_legacy=False):
     url = str(raw or "").strip()
     if not url or len(url) > 800:
         raise CatalogValidationError("Укажите ссылку на официальный источник, не длиннее 800 символов.")
@@ -36,14 +36,15 @@ def safe_official_url(raw, *, specific=True):
         supplied_port = parsed.port
     except ValueError as exc:
         raise CatalogValidationError("Недопустимый адрес официального источника.") from exc
+    allowed = {**OFFICIAL_HOSTS, **(LEGACY_HOSTS if allow_legacy else {})}
     if (parsed.scheme.casefold() != "https" or parsed.username or parsed.password
-            or supplied_port is not None or parsed.hostname not in OFFICIAL_HOSTS):
+            or supplied_port is not None or parsed.hostname not in allowed):
         raise CatalogValidationError(
             "Допустимы только адреса ГРЛС Минздрава или официального реестра ЕАЭС (HTTPS)."
         )
     if specific and parsed.path.casefold() in SOURCE_LANDING.get(parsed.hostname, ()) and not parsed.query:
         raise CatalogValidationError("Нужна ссылка на конкретную запись или инструкцию, не на главную страницу реестра.")
-    return url, OFFICIAL_HOSTS[parsed.hostname]
+    return url, allowed[parsed.hostname]
 
 
 def check_field(value, *, label, limit, required=True):
