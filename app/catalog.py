@@ -22,7 +22,7 @@ from .database import get_db
 from .manage import _check_csrf, _csrf
 from .models import (
     InventoryEvent, Medicine, MedicineRegistrationLink, RegisteredComposition,
-    RegisteredProduct, RegisteredSubstance, RegistryLinkEvent,
+    RegisteredProduct, RegisteredSubstance, RegistryLinkEvent, GrlsImportRow,
 )
 from .search import matches, normalize
 
@@ -71,7 +71,7 @@ def _record_statement():
     )
 
 
-def _registry_page(request, db, medicine, error=None):
+def _registry_page(request, db, medicine, error=None, candidate=None):
     links = db.scalars(
         select(MedicineRegistrationLink)
         .options(
@@ -89,7 +89,7 @@ def _registry_page(request, db, medicine, error=None):
     return templates.TemplateResponse(request, "registry_item.html", {
         "page": "catalog", "csrf_token": _csrf(request),
         "medicine": medicine, "links": links, "available": available,
-        "error": error,
+        "error": error, "candidate": candidate,
     })
 
 
@@ -135,8 +135,15 @@ def registered_detail(registered_id: int, request: Request, db: Session = Depend
 
 
 @router.get("/medicines/{medicine_id}/registry", response_class=HTMLResponse)
-def registry_for_medicine(medicine_id: int, request: Request, db: Session = Depends(get_db)):
-    return _registry_page(request, db, _medicine(db, medicine_id))
+def registry_for_medicine(
+    medicine_id: int, request: Request,
+    candidate_id: int | None = Query(None, ge=1),
+    db: Session = Depends(get_db),
+):
+    # Source export rows may prefill name/number only. Never copy INN,
+    # form, dose, certificate holder or registration status into curated fields.
+    candidate = db.get(GrlsImportRow, candidate_id) if candidate_id else None
+    return _registry_page(request, db, _medicine(db, medicine_id), candidate=candidate)
 
 
 @router.post("/medicines/{medicine_id}/registry", response_class=HTMLResponse)
