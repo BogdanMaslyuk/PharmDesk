@@ -259,3 +259,28 @@ def test_new_tables_additive_for_existing_stock(tmp_path):
         from app.models import Drawer
         assert session.scalar(select(Drawer).where(Drawer.number == 42)).name == "Существующий ящик"
     engine.dispose()
+
+
+def test_full_inventory_replacement_preserves_curated_registry_links(environment):
+    client, db, csrf, medicine_id = environment
+    created = client.post(f"/medicines/{medicine_id}/registry",
+                          data=form(csrf), follow_redirects=False)
+    assert created.status_code == 303
+    # Replacing stock is explicitly allowed, but must never erase a linked
+    # medicine's provenance merely because its old stock row is gone.
+    from app.replace_inventory import replace_stock
+    raw = (
+        "Ящик;Название ящика;Код;Наименование товара;Производитель\n"
+        "101;Учебный ящик;DEMO-A;Другой учебный товар 10 мг;Учебный завод\n"
+    ).encode("utf-8")
+    summary = replace_stock(db, raw, "replacement.csv")
+    assert summary["new_stock_rows"] == 1
+    assert db.get(Medicine, medicine_id) is not None
+    assert db.scalar(select(func.count(RegisteredProduct.id))) == 1
+    link = db.scalar(select(MedicineRegistrationLink).where(
+        MedicineRegistrationLink.medicine_id == medicine_id
+    ))
+    assert link is not None and link.state == "active"
+    assert db.scalar(select(StockItem)).medicine.name == "Другой учебный товар 10 мг"
+    # The new stock medicine remains unlinked: no automatic transfer by code.
+    assert db.scalar(select(StockItem)).medicine.id != medicine_id
