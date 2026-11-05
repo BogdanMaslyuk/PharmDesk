@@ -60,7 +60,7 @@ def save_identity(medicine_id: int, request: Request, csrf_token: str = Form(...
         if len(url) > 800:
             raise ValueError("Ссылка на источник слишком длинная.")
         try:
-            url, official_title = safe_official_url(url, specific=False)
+            url, official_title = safe_official_url(url, specific=False, allow_legacy=True)
         except CatalogValidationError as exc:
             raise ValueError(str(exc)) from exc
         if visually_checked != "yes":
