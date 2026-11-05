@@ -30,6 +30,20 @@ router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
 
 
+def _require_explanation(medicine_name, trade_name, strength, note):
+    """Explicit explanation for product names/doses not visibly matching.
+
+    An explanation does not certify identity; it creates an audit trail
+    requiring the reviewer to justify such a manual link.
+    """
+    name = normalize(medicine_name)
+    if (normalize(trade_name) not in name or normalize(strength) not in name) and len(note) < 20:
+        raise CatalogValidationError(
+            "Название или дозировка не совпадают с товарной строкой. "
+            "Укажите в примечании подробное обоснование сопоставления (не менее 20 символов)."
+        )
+
+
 def _medicine(db, medicine_id):
     medicine = db.get(Medicine, medicine_id)
     if medicine is None:
@@ -135,6 +149,7 @@ def add_registry_entry(
             raise CatalogValidationError(
                 "Подтвердите проверку источника и сопоставление с конкретным товаром."
             )
+        _require_explanation(medicine.name, trade, strength, note)
         key = registry_identity_key(reg, trade, form, strength, maker)
         current = db.scalar(select(RegisteredProduct).where(RegisteredProduct.identity_key == key))
         if current is not None:
@@ -191,6 +206,7 @@ def attach_existing(
         entry = db.get(RegisteredProduct, registered_id)
         if entry is None:
             raise CatalogValidationError("Регистрационная карточка не найдена.")
+        _require_explanation(medicine.name, entry.trade_name, entry.strength_text, note)
         existing = db.scalar(select(MedicineRegistrationLink).where(
             MedicineRegistrationLink.medicine_id == medicine.id,
             MedicineRegistrationLink.registered_product_id == entry.id
