@@ -1,51 +1,151 @@
 {% extends 'base.html' %}
-{% block title %}Фармакологический справочник{% endblock %}
-{% block breadcrumb %}Фармакологический справочник{% endblock %}
+{% block title %}Справочник лекарственных средств{% endblock %}
+{% block breadcrumb %}Справочник лекарственных средств{% endblock %}
 {% block content %}
 <div class="section-header"><div>
-  <div class="eyebrow">ДОКУМЕНТАЛЬНО ПОДТВЕРЖДАЕМЫЕ СВЕДЕНИЯ</div>
-  <h1>Справочник зарегистрированных препаратов</h1>
-  <p>Регистрационные карточки, состав и источники, внесённые вручную по официальным реестрам. Без автоматического распознавания действующих веществ.</p>
-</div></div>
-<div class="notice">
-  <strong>Обратите внимание.</strong> Это локальный каталог сведений, записанных пользователем, а не прямое подключение к ГРЛС.
-  PharmDesk не проверяет автоматически действительность регистрационного удостоверения, актуальность инструкции, взаимозаменяемость или безопасность.
-  <a href="https://grls.rosminzdrav.ru/" target="_blank" rel="noopener noreferrer">Открыть ГРЛС Минздрава ↗</a>
+  <div class="eyebrow">ФАРМАКОЛОГИЧЕСКИЕ СВЕДЕНИЯ · ДВА УРОВНЯ ПРОВЕРКИ</div>
+  <h1>Справочник лекарственных средств</h1>
+  <p>Реестровые сведения из загруженной выгрузки ГРЛС и отдельно подтверждённые вручную карточки.</p>
 </div>
-<div class="actions" style="margin-bottom:18px">
-  <a class="btn btn-white" href="/catalog/grls">Выгрузки ГРЛС: поиск и просмотр ↗</a>
-  <a class="btn btn-white" href="/catalog/grls/import">Загрузить ZIP из ГРЛС ↗</a>
-</div>
+<a class="btn btn-primary" href="/catalog/grls/import">Обновить данные ГРЛС</a></div>
 <div class="stat-grid">
-  <div class="stat"><div class="stat-title">Карточек в справочнике</div><div class="stat-value">{{total}}</div><div class="stat-desc">Внесены пользователем</div></div>
-  <div class="stat"><div class="stat-title">Результатов поиска</div><div class="stat-value">{{count}}</div><div class="stat-desc">По локальным записям</div></div>
+  <div class="stat">
+    <div class="stat-title">Строк ГРЛС в базе</div>
+    <div class="stat-value">{{"{:,}".format(source_total).replace(',', ' ')}}</div>
+    <div class="stat-desc">{% if batch %}Выгрузка от {{batch.snapshot_on.strftime('%d.%m.%Y')}}{% else %}Ещё не импортировано{% endif %}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-title">Карточек, сверенных человеком</div>
+    <div class="stat-value">{{manual_total}}</div>
+    <div class="stat-desc">Отдельные подтверждённые пользователем записи</div>
+  </div>
+  <div class="stat">
+    <div class="stat-title">Результатов поиска</div>
+    <div class="stat-value">{{"{:,}".format(count).replace(',', ' ')}}</div>
+    <div class="stat-desc">В выбранном разделе и текущих фильтрах</div>
+  </div>
 </div>
-<form action="/catalog" class="search-row" method="get">
-  <span>⌕</span><input type="search" name="q" value="{{q}}" placeholder="Номер регистрации, торговое название, вещество, форма" aria-label="Поиск в справочнике">
-  <button class="btn btn-primary" type="submit">Искать</button>
+{% if batch %}
+  <div class="notice">
+    <strong>Загруженная выгрузка обнаружена.</strong>
+    Из файла {{batch.archive_name}} получено {{source_total}} исходных строк на {{batch.snapshot_on.strftime('%d.%m.%Y')}}.
+    Теперь их можно искать прямо здесь — без повторного импорта.
+    <a href="/catalog/grls?batch_id={{batch.id}}">Сведения о загруженном архиве ↗</a>
+  </div>
+{% else %}
+  <div class="form-error">
+    <strong>В этой локальной базе пока нет сохранённой выгрузки ГРЛС.</strong>
+    Если ты уже видел предварительный просмотр, это ещё не означает сохранение: на следующем шаге необходимо ввести
+    <code>ИМПОРТИРОВАТЬ</code> и дождаться перенаправления. <a href="/catalog/grls/import">Открыть загрузку ↗</a>.
+    Существующие товары и ручные карточки не затронуты.
+  </div>
+{% endif %}
+<div class="catalog-tabs" role="navigation" aria-label="Разделы справочника">
+  {% if batch %}
+  <a href="/catalog?view=grls" class="catalog-tab {% if view == 'grls' %}active{% endif %}">
+    ГРЛС · импортированные записи
+    <span class="catalog-tab-count">{{"{:,}".format(source_total).replace(',', ' ')}}</span>
+  </a>
+  {% endif %}
+  <a href="/catalog?view=manual" class="catalog-tab {% if view == 'manual' %}active{% endif %}">
+    Подтверждено вручную
+    <span class="catalog-tab-count">{{manual_total}}</span>
+  </a>
+</div>
+{% if view == 'grls' %}
+<div class="notice catalog-source-warning">
+  <strong>Исходные данные реестра ≠ проверенные аптечные товары.</strong>
+  Статус указан на дату выгрузки, а МНН и формы выпуска взяты из файла без проверки на соответствие конкретной упаковке.
+  Отдельные записи могут быть изменёнными, исключёнными, истёкшими или неполными.
+  Сопоставление с ассортиментом не создано автоматически.
+</div>
+{% else %}
+<div class="notice">
+  <strong>Карточки, внесённые после ручной сверки.</strong>
+  Здесь отображаются только записи, которые пользователь отдельно связал с товаром после проверки конкретного источника.
+  Загрузка ZIP сама по себе не создаёт такие связи.
+</div>
+{% endif %}
+<form action="/catalog" method="get" class="review-filters catalog-search-filters">
+  <input type="hidden" name="view" value="{{view}}">
+  {% if view == 'grls' and batch %}
+    <input type="hidden" name="batch_id" value="{{batch.id}}">
+  {% endif %}
+  <label>Поиск по названию, МНН или регистрационному номеру
+    <input type="search" name="q" maxlength="100" value="{{q}}" placeholder="Например: валсартан, Валз, ЛП-000001">
+  </label>
+  {% if view == 'grls' %}
+    <label>Статус в выгрузке
+      <select name="status">
+        <option value="all">Все категории</option>
+        {% for item in statuses %}
+          <option value="{{item.name}}" {% if status == item.name %}selected{% endif %}>{{item.name}} ({{item.count}})</option>
+        {% endfor %}
+      </select>
+    </label>
+  {% endif %}
+  <button class="btn btn-primary" type="submit">Найти</button>
+  <a class="btn btn-white" href="/catalog?view={{view}}">Сбросить</a>
 </form>
 <section class="panel table-panel">
-  <div class="panel-head"><div><h2>Регистрационные карточки</h2><p>Для создания новой записи откройте товарную карточку в разделе «Препараты».</p></div><span class="counter">{{count}} записей</span></div>
+  <div class="panel-head"><div>
+    {% if view == 'grls' %}
+      <h2>Сведения ГРЛС из исходного файла</h2>
+      <p>Открой запись для просмотра полного текста формы, статуса, даты и происхождения строки.</p>
+    {% else %}
+      <h2>Регистрационные карточки, подтверждённые вручную</h2>
+      <p>Чтобы подтвердить новый препарат, открой товарную карточку и раздел сопоставления с ГРЛС.</p>
+    {% endif %}
+  </div><span class="counter">Найдено: {{count}}</span></div>
   <div class="table-wrap"><table>
+  {% if view == 'grls' %}
+    <thead><tr>
+      <th>Торговое название</th><th>МНН из файла</th><th>Регистрационный номер</th>
+      <th>Формы выпуска из файла</th><th>Категория на дату выгрузки</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for item in imported_items %}
+      <tr>
+        <td><a class="drug-name" href="/catalog/grls/row/{{item.id}}">{{item.trade_name}}</a>
+          <small class="muted">Текст из выгрузки, не проверен для аптечного товара</small></td>
+        <td>{{item.inn_raw or 'Не указано в файле'}}</td>
+        <td class="code">{{item.registration_number}}</td>
+        <td>
+          {% if item.release_forms_raw %}
+            <div class="catalog-forms-preview">{{item.release_forms_raw}}</div>
+          {% else %}
+            <span class="review-chip warn">Форма не указана</span>
+          {% endif %}
+        </td>
+        <td><span class="review-chip warn">{{item.status_from_filename}}</span>
+          <small class="muted">{{batch.snapshot_on.strftime('%d.%m.%Y')}}</small></td>
+        <td><a class="text-link" href="/catalog/grls/row/{{item.id}}">Подробнее ↗</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="empty-cell">По введённому запросу в выбранной выгрузке совпадений нет. Это не доказывает отсутствия регистрации препарата.</td></tr>
+    {% endfor %}
+    </tbody>
+  {% else %}
     <thead><tr><th>Торговое название</th><th>Номер регистрации</th><th>Форма / дозировка</th><th>Действующие вещества</th><th>Источник</th><th></th></tr></thead>
     <tbody>
-    {% for item in items %}
+    {% for item in manual_items %}
       <tr>
         <td><a class="drug-name" href="/catalog/{{item.id}}">{{item.trade_name}}</a><small class="muted">{{item.manufacturer or 'Производитель не указан'}}</small></td>
         <td class="code">{{item.registration_number}}</td>
         <td>{{item.dosage_form}} <small class="muted">{{item.strength_text}}</small></td>
         <td>{% for part in item.substances %}<span class="catalog-substance">{{part.substance.name}}</span>{% endfor %}</td>
-        <td><span class="review-chip warn">Внесено вручную</span><small class="muted">{{item.checked_on.strftime('%d.%m.%Y')}}</small></td>
+        <td><span class="review-chip warn">Ручная сверка</span><small class="muted">{{item.checked_on.strftime('%d.%m.%Y')}}</small></td>
         <td><a class="text-link" href="/catalog/{{item.id}}">Открыть ↗</a></td>
       </tr>
-    {% else %}<tr><td colspan="6" class="empty-cell">Карточек нет. Начните с товарной позиции и конкретной записи в официальном реестре.</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="6" class="empty-cell">Ручных регистрационных карточек не найдено. Сведения из выгрузки ГРЛС доступны в соседней вкладке, если импорт завершён.</td></tr>{% endfor %}
     </tbody>
+  {% endif %}
   </table></div>
   {% if pages > 1 %}<div class="review-pages">
-    {% if page_number > 1 %}<a class="btn btn-white" href="/catalog?q={{q|urlencode}}&page_number={{page_number-1}}">← Назад</a>{% endif %}
+    {% if page_number > 1 %}<a class="btn btn-white" href="/catalog?view={{view}}&batch_id={{batch.id if batch else ''}}&q={{q|urlencode}}&status={{status|urlencode}}&page_number={{page_number-1}}">← Назад</a>{% endif %}
     <span>Страница {{page_number}} из {{pages}}</span>
-    {% if page_number < pages %}<a class="btn btn-white" href="/catalog?q={{q|urlencode}}&page_number={{page_number+1}}">Вперёд →</a>{% endif %}
+    {% if page_number < pages %}<a class="btn btn-white" href="/catalog?view={{view}}&batch_id={{batch.id if batch else ''}}&q={{q|urlencode}}&status={{status|urlencode}}&page_number={{page_number+1}}">Вперёд →</a>{% endif %}
   </div>{% endif %}
 </section>
-<div class="notice">Наличие в справочнике не означает наличие на складе. Запись в справочнике не является назначением, основанием для замены терапии или результатом проверки взаимодействий.</div>
+<div class="notice">Наличие в ГРЛС и наличие в конкретном ящике — разные факты. Сведения из выгрузки не являются рекомендацией лечения, подтверждением текущей регистрации или основанием для автоматической замены препарата.</div>
 {% endblock %}
