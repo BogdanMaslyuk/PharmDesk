@@ -214,8 +214,9 @@ def add_registry_entry(
             raise CatalogValidationError(
                 "Подтвердите проверку источника и сопоставление с конкретным товаром."
             )
+        source_note = _check_grls_candidate(db, candidate_id, reg, trade, form, strength, note)
         _require_explanation(medicine.name, trade, strength, note)
-        note = _check_grls_candidate(db, candidate_id, reg, trade, form, strength, note)
+        note = source_note
         key = registry_identity_key(reg, trade, form, strength, maker)
         current = db.scalar(select(RegisteredProduct).where(RegisteredProduct.identity_key == key))
         if current is not None:
