@@ -288,3 +288,117 @@ def test_source_candidate_requires_exact_reg_and_trade_then_checks_form_strength
     stock = db.scalar(select(StockItem))
     assert stock.article_code == "TEST-160"
     assert stock.medicine.name == "Валз таб. 160 мг"
+
+
+def test_realistic_grls_banner_changed_status_long_forms_and_footer():
+    from datetime import datetime
+    big_forms = "таблетки 160 мг; " * 260  # more than 3500 characters
+    assert len(big_forms) > 3500
+    w = Workbook()
+    s = w.active
+    s.append([None] * 3 + ["Государственный реестр на дату выгрузки"])
+    s.append([""] * len(HEADERS))
+    # In a real GRLS XLSX the columns start at C; insert two blank columns.
+    s.append([None, None] + HEADERS)
+    s.append([None, None, "Изменённый"])
+    rec = {
+        "Номер регистрационного удостоверения": "ЛП-00001",
+        "Торговое наименование лекарственного препарата": "Учебный препарат",
+        "Международное непатентованное или химическое наименование": "Учебное МНН",
+        "Формы выпуска": big_forms,
+    }
+    s.append([None, None] + [rec.get(x) for x in HEADERS])
+    s.append([None, None, "05.11.2026 05:00:00"])
+    buf = BytesIO()
+    w.save(buf)
+    raw = BytesIO()
+    with ZipFile(raw, "w") as z:
+        z.writestr(f"grls{date.today().isoformat()}-1-Изменённый.xlsx", buf.getvalue())
+    parsed = parse_grls_archive(raw.getvalue())
+    assert parsed["count"] == 1
+    assert parsed["status_counts"] == {"Изменённый": 1}
+    assert parsed["rows"][0]["registration_number"] == "ЛП-00001"
+    assert parsed["rows"][0]["release_forms_raw"] == big_forms.strip()
+    assert parsed["rows"][0]["source_row"] == 5
+
+
+def test_direct_fetch_shows_preview_but_does_not_change_stock(env, monkeypatch):
+    import app.grls as grls
+    client, db, csrf, medicine_id, _ = env
+    raw = archive()
+    def mock_fetch():
+        return raw, {"page": "https://grls.minzdrav.gov.ru/grls.aspx"}
+    monkeypatch.setattr(grls, "fetch_official_grls", mock_fetch)
+    before = db.scalar(select(StockItem))
+    original = (before.id, before.article_code, before.medicine.name)
+    shown = client.post("/catalog/grls/fetch", data={"csrf_token": csrf})
+    assert shown.status_code == 200
+    assert "Предварительный просмотр" in shown.text
+    assert "Получено через HTTPS" in shown.text
+    assert db.scalar(select(func.count(GrlsImportRow.id))) == 0
+    assert db.scalar(select(func.count(GrlsImportBatch.id))) == 0
+    assert db.scalar(select(func.count(MedicineRegistrationLink.id))) == 0
+    assert confirm(client, csrf, raw).status_code == 303
+    after = db.scalar(select(StockItem))
+    assert (after.id, after.article_code, after.medicine.name) == original
+    assert db.scalar(select(func.count(GrlsImportRow.id))) == 2
+    denied = client.post("/catalog/grls/fetch", data={"csrf_token": "bad"})
+    assert denied.status_code == 403
+
+
+def test_official_download_is_pinned_to_government_domain():
+    from app.grls_fetch import fetch_official_grls, OFFICIAL_PAGE
+    class FakeResponse:
+        def __init__(self, payload, url):
+            self.payload = BytesIO(payload)
+            self.url = url
+            self.status = 200
+        def __enter__(self):return self
+        def __exit__(self, *args):pass
+        def geturl(self):return self.url
+        def read(self, size=-1):return self.payload.read(size)
+    class FakeOpener:
+        def __init__(self, page, zip_blob, redirect=None):
+            self.page = page.encode("utf-8")
+            self.blob = zip_blob
+            self.redirect = redirect
+        def open(self, request, timeout=10):
+            url = request.full_url
+            if url == OFFICIAL_PAGE:
+                return FakeResponse(self.page, OFFICIAL_PAGE)
+            return FakeResponse(self.blob, self.redirect or url)
+
+    control = ("<button onclick=\"go('GetGRLS.ashx?"
+               "FileGUID=93f711c0-66a1-4b78-a546-90065477151c"
+               "&UserReq=6443605')\">ZIP</button>")
+    raw = archive()
+    data, meta = fetch_official_grls(opener=FakeOpener(control, raw))
+    assert data == raw
+    assert meta["downloaded"] is True
+    with pytest.raises(GrlsImportError):
+        fetch_official_grls(opener=FakeOpener(control, raw, "https://evil.example/zip"))
+    with pytest.raises(GrlsImportError):
+        fetch_official_grls(opener=FakeOpener("<html>no download button</html>", raw))
+
+
+def test_missing_forms_in_official_record_are_retained_but_flagged():
+    w = Workbook()
+    s = w.active
+    s.append(HEADERS)
+    rec = {
+        "Номер регистрационного удостоверения": "ЛП-004040",
+        "Торговое наименование лекарственного препарата": "Учебный препарат без формы",
+        "Международное непатентованное или химическое наименование": "Учебное МНН",
+        # Real GRLS files have some missing form descriptions.
+    }
+    s.append([rec.get(x) for x in HEADERS])
+    inner = BytesIO()
+    w.save(inner)
+    outer = BytesIO()
+    with ZipFile(outer, "w") as z:
+        z.writestr(f"grls{date.today().isoformat()}-1-Действующий.xlsx", inner.getvalue())
+    parsed = parse_grls_archive(outer.getvalue())
+    assert parsed["count"] == 1
+    assert parsed["missing_forms"] == 1
+    assert parsed["rows"][0]["release_forms_raw"] == ""
+    assert parsed["rows"][0]["registration_number"] == "ЛП-004040"

@@ -18,6 +18,17 @@
 </div>
 {% if error %}<div class="form-error" role="alert">{{error}}</div>{% endif %}
 {% if not preview %}
+<section class="panel">
+  <div class="panel-head"><h2>1. Получить актуальную выгрузку автоматически</h2></div>
+  <div class="panel-body">
+    <p>PharmDesk самостоятельно откроет официальную страницу Минздрава, найдёт ссылку на ZIP и проверит полученный архив. Сохранять данные в базу можно будет только после отдельного подтверждения.</p>
+    <form action="/catalog/grls/fetch" method="post">
+      <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+      <button class="btn btn-primary" type="submit">Получить ZIP напрямую с ГРЛС</button>
+    </form>
+    <p class="field-hint">Если портал недоступен с вашего компьютера, программа покажет ошибку и сохранит существующую базу без изменений. Можно воспользоваться готовым официальным архивом, полученным через GitHub.</p>
+  </div>
+</section>
 <div class="details-grid">
   <section class="panel">
     <div class="panel-head"><h2>1. Выберите файл выгрузки</h2></div>
@@ -53,8 +64,14 @@
       <div class="stat"><div class="stat-title">Дата выгрузки</div><div class="stat-value grls-date">{{preview.snapshot_on.strftime('%d.%m.%Y')}}</div></div>
       <div class="stat"><div class="stat-title">Книг Excel</div><div class="stat-value">{{preview.source_files|length}}</div></div>
     </div>
+    {% if preview.missing_forms %}
+      <div class="notice"><strong>В исходной выгрузке есть {{preview.missing_forms}} записей без заполненного поля «Формы выпуска».</strong> Их нельзя автоматически считать соответствующими конкретной аптечной упаковке.</div>
+    {% endif %}
     {% if preview.old %}
       <div class="form-error"><strong>Устаревшая выгрузка.</strong> Её дата более 30 дней назад. Нельзя использовать её статусы как подтверждение текущей регистрации.</div>
+    {% endif %}
+    {% if preview.automatic_download %}
+      <div class="notice"><strong>Получено через HTTPS с официального сайта.</strong> Проверьте дату и категории документа перед сохранением. Это не подтверждение актуального статуса регистрации.</div>
     {% endif %}
     <p><b>Файл:</b> {{preview.original_filename}}</p>
     <p><b>Контрольная сумма SHA-256:</b> <code>{{preview.sha256}}</code></p>

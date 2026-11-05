@@ -34,6 +34,7 @@ MAX_HEADER_SCAN = 18
 # Machine-documented categories and historical archive categories.
 KNOWN_STATUSES = {
     "действующий": "Действующий",
+    "измененный": "Изменённый",
     "действует_на_подтверждении_государственной_регистрации": "Действует на подтверждении регистрации",
     "действует_в_иностранных_упаковках": "Действует в иностранных упаковках",
     "выдано_по_правилам_еаэс": "Выдано по правилам ЕАЭС",
@@ -152,6 +153,7 @@ def parse_grls_archive(raw):
     source_files = []
     total_size = 0
     total_rows = 0
+    missing_forms = 0
     seen_source = set()
     try:
         with ZipFile(BytesIO(raw)) as package:
@@ -217,14 +219,28 @@ def parse_grls_archive(raw):
                         reg = cell("registration_number", 140)
                         trade = cell("trade_name", 350)
                         inn = cell("inn_raw", 1800)
-                        forms = cell("release_forms_raw", 3500)
+                        forms = cell("release_forms_raw", 32767)
                         holder = cell("certificate_holder", 600)
-                        if not reg or not trade or not forms:
-                            # Never invent missing registry identity fields.
+                        # The real official XLSX contains a single-cell category
+                        # banner immediately below its header, and a one-cell
+                        # timestamp footer (e.g. 05.11.2026 05:00:00).
+                        # They are not medicines and must not become false rows.
+                        if not trade and not forms and (
+                            source_row == header_line + 1
+                            or re.fullmatch(r"\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}", reg)
+                        ):
+                            continue
+                        if not reg or not trade:
+                            # A real dated GRLS export may omit forms but must
+                            # retain registration number and trade name.
                             raise GrlsImportError(
-                                f"Книга «{name}», строка {source_row}: отсутствует номер регистрации, "
-                                "торговое название либо формы выпуска."
+                                f"Книга «{name}», строка {source_row}: отсутствует номер регистрации "
+                                "или торговое название."
                             )
+                        if not forms:
+                            # Keep the incomplete source row, visibly unverified,
+                            # rather than discarding the entire official ZIP.
+                            missing_forms += 1
                         entries.append({
                             "source_workbook": name, "source_row": source_row,
                             "status_from_filename": status,
@@ -248,7 +264,8 @@ def parse_grls_archive(raw):
     return {
         "sha256": digest, "snapshot_on": next(iter(snapshots)),
         "source_files": source_files, "status_counts": dict(status_counts),
-        "count": total_rows, "sample": entries[:15], "rows": entries,
+        "count": total_rows, "missing_forms": missing_forms,
+        "sample": entries[:15], "rows": entries,
     }
 
 
