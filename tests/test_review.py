@@ -200,7 +200,7 @@ def test_drug_identity_is_only_manually_sourced(environment):
         "csrf_token": token, "substances": "Учебное вещество",
         "source_url": "https://example.org/invalid", "visually_checked": "yes",
     })
-    assert "grls.minzdrav.gov.ru" in bad.text
+    assert "ГРЛС Минздрава" in bad.text
     assert db.scalar(select(func.count(SubstanceEvidence.id))) == 0
     ok = client.post(url, data={
         "csrf_token": token, "substances": "Учебное вещество",
