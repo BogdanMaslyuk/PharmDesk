@@ -34,6 +34,7 @@ MAX_HEADER_SCAN = 18
 # Machine-documented categories and historical archive categories.
 KNOWN_STATUSES = {
     "действующий": "Действующий",
+    "измененный": "Изменённый",
     "действует_на_подтверждении_государственной_регистрации": "Действует на подтверждении регистрации",
     "действует_в_иностранных_упаковках": "Действует в иностранных упаковках",
     "выдано_по_правилам_еаэс": "Выдано по правилам ЕАЭС",
@@ -217,8 +218,17 @@ def parse_grls_archive(raw):
                         reg = cell("registration_number", 140)
                         trade = cell("trade_name", 350)
                         inn = cell("inn_raw", 1800)
-                        forms = cell("release_forms_raw", 3500)
+                        forms = cell("release_forms_raw", 32767)
                         holder = cell("certificate_holder", 600)
+                        # The real official XLSX contains a single-cell category
+                        # banner immediately below its header, and a one-cell
+                        # timestamp footer (e.g. 05.11.2026 05:00:00).
+                        # They are not medicines and must not become false rows.
+                        if not trade and not forms and (
+                            source_row == header_line + 1
+                            or re.fullmatch(r"\\d{2}\\.\\d{2}\\.\\d{4}\\s+\\d{2}:\\d{2}:\\d{2}", reg)
+                        ):
+                            continue
                         if not reg or not trade or not forms:
                             # Never invent missing registry identity fields.
                             raise GrlsImportError(
