@@ -134,7 +134,7 @@
         <td class="code">{{item.registration_number}}</td>
         <td>{{item.dosage_form}} <small class="muted">{{item.strength_text}}</small></td>
         <td>{% for part in item.substances %}<span class="catalog-substance">{{part.substance.name}}</span>{% endfor %}</td>
-        <td><span class="review-chip warn">Ручная сверка</span><small class="muted">{{item.checked_on.strftime('%d.%m.%Y')}}</small></td>
+        <td><span class="review-chip warn">Внесено вручную</span><small class="muted">{{item.checked_on.strftime('%d.%m.%Y')}}</small></td>
         <td><a class="text-link" href="/catalog/{{item.id}}">Открыть ↗</a></td>
       </tr>
     {% else %}<tr><td colspan="6" class="empty-cell">Ручных регистрационных карточек не найдено. Сведения из выгрузки ГРЛС доступны в соседней вкладке, если импорт завершён.</td></tr>{% endfor %}
@@ -142,9 +142,9 @@
   {% endif %}
   </table></div>
   {% if pages > 1 %}<div class="review-pages">
-    {% if page_number > 1 %}<a class="btn btn-white" href="/catalog?view={{view}}&batch_id={{batch.id if batch else ''}}&q={{q|urlencode}}&status={{status|urlencode}}&page_number={{page_number-1}}">← Назад</a>{% endif %}
+    {% if page_number > 1 %}<a class="btn btn-white" href="/catalog?view={{view}}{% if view == 'grls' and batch %}&batch_id={{batch.id}}{% endif %}&q={{q|urlencode}}&status={{status|urlencode}}&page_number={{page_number-1}}">← Назад</a>{% endif %}
     <span>Страница {{page_number}} из {{pages}}</span>
-    {% if page_number < pages %}<a class="btn btn-white" href="/catalog?view={{view}}&batch_id={{batch.id if batch else ''}}&q={{q|urlencode}}&status={{status|urlencode}}&page_number={{page_number+1}}">Вперёд →</a>{% endif %}
+    {% if page_number < pages %}<a class="btn btn-white" href="/catalog?view={{view}}{% if view == 'grls' and batch %}&batch_id={{batch.id}}{% endif %}&q={{q|urlencode}}&status={{status|urlencode}}&page_number={{page_number+1}}">Вперёд →</a>{% endif %}
   </div>{% endif %}
 </section>
 <div class="notice">Наличие в ГРЛС и наличие в конкретном ящике — разные факты. Сведения из выгрузки не являются рекомендацией лечения, подтверждением текущей регистрации или основанием для автоматической замены препарата.</div>
