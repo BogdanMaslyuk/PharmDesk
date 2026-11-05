@@ -33,13 +33,14 @@ def safe_official_url(raw, *, specific=True):
         raise CatalogValidationError("Ссылка содержит недопустимые символы.")
     try:
         parsed = urlsplit(url)
-        if (parsed.scheme.casefold() != "https" or parsed.username or parsed.password
-                or parsed.port is not None or parsed.hostname not in OFFICIAL_HOSTS):
-            raise CatalogValidationError(
-                "Допустимы только адреса ГРЛС Минздрава или официального реестра ЕАЭС (HTTPS)."
-            )
+        supplied_port = parsed.port
     except ValueError as exc:
         raise CatalogValidationError("Недопустимый адрес официального источника.") from exc
+    if (parsed.scheme.casefold() != "https" or parsed.username or parsed.password
+            or supplied_port is not None or parsed.hostname not in OFFICIAL_HOSTS):
+        raise CatalogValidationError(
+            "Допустимы только адреса ГРЛС Минздрава или официального реестра ЕАЭС (HTTPS)."
+        )
     if specific and parsed.path.casefold() in SOURCE_LANDING.get(parsed.hostname, ()) and not parsed.query:
         raise CatalogValidationError("Нужна ссылка на конкретную запись или инструкцию, не на главную страницу реестра.")
     return url, OFFICIAL_HOSTS[parsed.hostname]
