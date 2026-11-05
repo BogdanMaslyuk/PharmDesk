@@ -379,3 +379,26 @@ def test_official_download_is_pinned_to_government_domain():
         fetch_official_grls(opener=FakeOpener(control, raw, "https://evil.example/zip"))
     with pytest.raises(GrlsImportError):
         fetch_official_grls(opener=FakeOpener("<html>no download button</html>", raw))
+
+
+def test_missing_forms_in_official_record_are_retained_but_flagged():
+    w = Workbook()
+    s = w.active
+    s.append(HEADERS)
+    rec = {
+        "Номер регистрационного удостоверения": "ЛП-004040",
+        "Торговое наименование лекарственного препарата": "Учебный препарат без формы",
+        "Международное непатентованное или химическое наименование": "Учебное МНН",
+        # Real GRLS files have some missing form descriptions.
+    }
+    s.append([rec.get(x) for x in HEADERS])
+    inner = BytesIO()
+    w.save(inner)
+    outer = BytesIO()
+    with ZipFile(outer, "w") as z:
+        z.writestr(f"grls{date.today().isoformat()}-1-Действующий.xlsx", inner.getvalue())
+    parsed = parse_grls_archive(outer.getvalue())
+    assert parsed["count"] == 1
+    assert parsed["missing_forms"] == 1
+    assert parsed["rows"][0]["release_forms_raw"] == ""
+    assert parsed["rows"][0]["registration_number"] == "ЛП-004040"
