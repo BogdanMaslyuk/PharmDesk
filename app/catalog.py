@@ -22,7 +22,7 @@ from .database import get_db
 from .manage import _check_csrf, _csrf
 from .models import (
     InventoryEvent, Medicine, MedicineRegistrationLink, RegisteredComposition,
-    RegisteredProduct, RegisteredSubstance,
+    RegisteredProduct, RegisteredSubstance, RegistryLinkEvent,
 )
 from .search import matches, normalize
 
@@ -63,7 +63,8 @@ def _registry_page(request, db, medicine, error=None):
         .options(
             selectinload(MedicineRegistrationLink.product)
             .selectinload(RegisteredProduct.substances)
-            .selectinload(RegisteredComposition.substance)
+            .selectinload(RegisteredComposition.substance),
+            selectinload(MedicineRegistrationLink.history)
         )
         .where(MedicineRegistrationLink.medicine_id == medicine.id)
         .order_by(MedicineRegistrationLink.id.desc())
@@ -174,9 +175,14 @@ def add_registry_entry(
                 db.add(ingredient)
                 db.flush()
             db.add(RegisteredComposition(product=entry, substance=ingredient))
-        db.add(MedicineRegistrationLink(
+        link = MedicineRegistrationLink(
             medicine_id=medicine.id, registered_product_id=entry.id,
             comparison_note=note, state="active",
+        )
+        db.add(link)
+        db.flush()
+        db.add(RegistryLinkEvent(
+            link_id=link.id, action="linked", explanation=note
         ))
         db.add(InventoryEvent(
             event_type="registry_manual_link",
@@ -219,14 +225,22 @@ def attach_existing(
             existing.revoke_reason = ""
             existing.linked_at = datetime.now(timezone.utc)
             existing.comparison_note = note
+            db.add(RegistryLinkEvent(
+                link_id=existing.id, action="relinked", explanation=note
+            ))
             db.add(InventoryEvent(
                 event_type="registry_manual_link",
                 description=f"Manual re-link: medicine #{medicine.id}, record #{entry.id}."
             ))
         else:
-            db.add(MedicineRegistrationLink(
+            link = MedicineRegistrationLink(
                 medicine_id=medicine.id, registered_product_id=entry.id,
                 comparison_note=note, state="active"
+            )
+            db.add(link)
+            db.flush()
+            db.add(RegistryLinkEvent(
+                link_id=link.id, action="linked", explanation=note
             ))
             db.add(InventoryEvent(
                 event_type="registry_manual_link",
@@ -260,6 +274,9 @@ def revoke(
         link.state = "revoked"
         link.revoked_at = datetime.now(timezone.utc)
         link.revoke_reason = explanation
+        db.add(RegistryLinkEvent(
+            link_id=link.id, action="revoked", explanation=explanation
+        ))
         db.add(InventoryEvent(
             event_type="registry_link_revoked",
             description=f"Manual registry link revoked: medicine #{medicine.id}, link #{link_id}."
