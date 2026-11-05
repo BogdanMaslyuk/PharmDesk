@@ -10,6 +10,38 @@
 <p>Отдельные регистрационные карточки, форма выпуска, дозировка, состав и проверенный человеком источник. Автоматического сопоставления нет.</p></div>
 <a class="text-link" href="/medicines/{{medicine.id}}/registry">Открыть сопоставление ↗</a> <a class="text-link" href="/catalog/grls/matches/{{medicine.id}}">Искать в выгрузке ГРЛС ↗</a></div>
 </section>
+{% if registry_batch %}
+<section class="panel information-panel catalog-medicine-candidates">
+  <div class="panel-head"><div>
+    <h2>Возможные записи ГРЛС по названию</h2>
+    <p>По выгрузке от {{registry_batch.snapshot_on.strftime('%d.%m.%Y')}}. <strong>Это не подтверждённое сопоставление.</strong>
+    Название, форма, дозировка, МНН и статус требуют независимой сверки с конкретным товаром.</p>
+  </div><a class="text-link" href="/catalog/grls/matches/{{medicine.id}}">Все возможные записи ↗</a></div>
+  <div class="table-wrap">
+    {% if candidate_rows %}
+    <table>
+      <thead><tr><th>Торговое название</th><th>МНН из файла</th><th>Регистрационный номер</th><th>Формы выпуска (исходный текст)</th><th>Статус на дату выгрузки</th><th></th></tr></thead>
+      <tbody>
+        {% for row in candidate_rows %}
+        <tr>
+          <td><a class="drug-name" href="/catalog/grls/row/{{row.id}}">{{row.trade_name}}</a></td>
+          <td>{{row.inn_raw or 'Не указано'}}</td>
+          <td class="code">{{row.registration_number}}</td>
+          <td><div class="catalog-forms-preview">{{row.release_forms_raw|truncate(160, True) if row.release_forms_raw else 'Не указано'}}</div></td>
+          <td><span class="review-chip warn">{{row.status_from_filename}}</span></td>
+          <td><a class="text-link" href="/medicines/{{medicine.id}}/registry?candidate_id={{row.id}}">Сверить ↗</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="panel-body">
+      <p>Возможные совпадения по первому слову названия не найдены. Это <strong>не означает</strong>, что препарат отсутствует в реестре или не зарегистрирован.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
 {% if registrations %}
 <section class="panel information-panel">
   <div class="panel-head"><div><h2>Внесённые регистрационные сведения</h2><p>Связаны с товаром человеком после сверки конкретной формы и дозировки. Актуальность регистрации не проверяется автоматически.</p></div></div>
