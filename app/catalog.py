@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Form, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from starlette.requests import Request
@@ -23,6 +23,7 @@ from .manage import _check_csrf, _csrf
 from .models import (
     InventoryEvent, Medicine, MedicineRegistrationLink, RegisteredComposition,
     RegisteredProduct, RegisteredSubstance, RegistryLinkEvent, GrlsImportRow,
+    GrlsImportBatch,
 )
 from .search import matches, normalize
 
@@ -136,27 +137,102 @@ def _registry_page(request, db, medicine, error=None, candidate=None):
 
 
 @router.get("/catalog", response_class=HTMLResponse)
-def catalog(request: Request, q: str = Query("", max_length=100),
-            page_number: int = Query(1, ge=1), db: Session = Depends(get_db)):
-    records = db.scalars(
-        _record_statement().order_by(RegisteredProduct.trade_name, RegisteredProduct.id)
-    ).all()
-    filtered = [
-        record for record in records
-        if not q.strip() or matches(
-            " ".join((record.registration_number, record.trade_name,
-                      record.dosage_form, record.strength_text, record.manufacturer,
-                      " ".join(x.substance.name for x in record.substances))),
-            q,
+def catalog(
+    request: Request, q: str = Query("", max_length=100),
+    view: str = Query("", max_length=20),
+    batch_id: int | None = Query(None, ge=1),
+    status: str = Query("all", max_length=150),
+    page_number: int = Query(1, ge=1), db: Session = Depends(get_db),
+):
+    """Unified reference landing: source snapshots + human-reviewed records.
+
+    Imported GRLS records are visibly labeled as unverified *source rows*,
+    NOT medicine identities or approved links to local pharmacy stock.
+    No data is copied between tables, modified, or interpreted clinically.
+    """
+    manual_total = db.scalar(select(func.count(RegisteredProduct.id))) or 0
+    batch = (
+        db.get(GrlsImportBatch, batch_id) if batch_id is not None
+        else db.scalar(
+            select(GrlsImportBatch)
+            .order_by(GrlsImportBatch.snapshot_on.desc(), GrlsImportBatch.id.desc())
+            .limit(1)
         )
-    ]
+    )
+    selected = view if view in {"manual", "grls"} else (
+        "grls" if batch else "manual"
+    )
+    if selected == "grls" and not batch:
+        selected = "manual"
     limit = 30
-    pages = max(1, (len(filtered) + limit - 1) // limit)
-    page_number = min(page_number, pages)
+    manual_items = []
+    imported_items = []
+    statuses = []
+    count = 0
+    if selected == "manual":
+        # The curated subset is intentionally smaller and fits in memory.
+        records = db.scalars(
+            _record_statement().order_by(RegisteredProduct.trade_name, RegisteredProduct.id)
+        ).all()
+        filtered = [
+            record for record in records
+            if not q.strip() or matches(
+                " ".join((
+                    record.registration_number, record.trade_name,
+                    record.dosage_form, record.strength_text, record.manufacturer,
+                    " ".join(part.substance.name for part in record.substances),
+                )), q
+            )
+        ]
+        count = len(filtered)
+        pages = max(1, (count + limit - 1) // limit)
+        page_number = min(page_number, pages)
+        manual_items = filtered[(page_number - 1) * limit: page_number * limit]
+    else:
+        status_rows = db.execute(
+            select(GrlsImportRow.status_from_filename, func.count(GrlsImportRow.id))
+            .where(GrlsImportRow.batch_id == batch.id)
+            .group_by(GrlsImportRow.status_from_filename)
+        ).all()
+        statuses = [{"name": name, "count": total} for name, total in status_rows]
+        if status not in {"all", *(item["name"] for item in statuses)}:
+            status = "all"
+        statement = select(GrlsImportRow).where(GrlsImportRow.batch_id == batch.id)
+        if status != "all":
+            statement = statement.where(GrlsImportRow.status_from_filename == status)
+        search = q.strip()
+        if search:
+            # Normalized keys make registration/title searches insensitive to
+            # case, spaces and punctuation. INN remains an unaltered source
+            # field; check common Cyrillic capitalization variants on the DB.
+            key = normalize(search)
+            inn_terms = tuple(dict.fromkeys(
+                (search, search.casefold(), search.capitalize(), search.upper())
+            ))
+            conditions = [
+                GrlsImportRow.registration_key.contains(key),
+                GrlsImportRow.trade_key.contains(key),
+                *(GrlsImportRow.inn_raw.contains(term) for term in inn_terms),
+            ]
+            statement = statement.where(or_(*conditions))
+        count = db.scalar(
+            select(func.count()).select_from(statement.subquery())
+        ) or 0
+        pages = max(1, (count + limit - 1) // limit)
+        page_number = min(page_number, pages)
+        imported_items = db.scalars(
+            statement.order_by(
+                GrlsImportRow.trade_name, GrlsImportRow.registration_number,
+                GrlsImportRow.id,
+            ).offset((page_number - 1) * limit).limit(limit)
+        ).all()
     return templates.TemplateResponse(request, "catalog.html", {
-        "page": "catalog", "items": filtered[(page_number - 1) * limit: page_number * limit],
-        "count": len(filtered), "q": q, "page_number": page_number, "pages": pages,
-        "total": len(records),
+        "page": "catalog",
+        "manual_items": manual_items, "imported_items": imported_items,
+        "manual_total": manual_total, "batch": batch,
+        "source_total": batch.row_count if batch else 0,
+        "view": selected, "status": status, "statuses": statuses,
+        "q": q, "count": count, "page_number": page_number, "pages": pages,
     })
 
 

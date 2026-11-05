@@ -7,6 +7,34 @@
   <div class="stat"><div class="stat-title">Товарных позиций <span>☷</span></div><div class="stat-value">{{ items_count }}</div><div class="stat-desc">Записей в ассортименте</div></div>
   <div class="stat"><div class="stat-title">Карточек товаров <span>✚</span></div><div class="stat-value">{{ medicines_count }}</div><div class="stat-desc">Не подтверждает наличие</div></div>
 </div>
+<section class="panel catalog-home-panel">
+  <div class="panel-head"><div>
+    <h2>Фармакологический справочник · ГРЛС</h2>
+    <p>Источник регистрационных сведений отдельно от аптечных товаров</p>
+  </div><a class="text-link" href="/catalog">Открыть справочник ↗</a></div>
+  <div class="panel-body">
+    {% if registry_batch %}
+      <div class="catalog-home-summary">
+        <div>
+          <div class="eyebrow">ИМПОРТИРОВАННЫЕ СВЕДЕНИЯ ГРЛС</div>
+          <strong class="catalog-home-number">{{"{:,}".format(registry_batch.row_count).replace(',', ' ')}}</strong>
+          <div class="muted">Исходных записей из выгрузки от {{registry_batch.snapshot_on.strftime('%d.%m.%Y')}}</div>
+        </div>
+        <div>
+          <div class="eyebrow">РУЧНАЯ СВЕРКА</div>
+          <strong class="catalog-home-number">{{curated_count}}</strong>
+          <div class="muted">Регистрационных карточек, внесённых человеком</div>
+        </div>
+      </div>
+      <p class="field-hint">ГРЛС содержит сведения из официального файла, но не означает, что каждый препарат уже сопоставлен с товаром.</p>
+      <div class="actions"><a class="btn btn-primary" href="/catalog?view=grls">Смотреть импортированные препараты</a>
+        <a class="btn btn-white" href="/catalog?view=manual">Ручные карточки</a></div>
+    {% else %}
+      <p><strong>ГРЛС ещё не сохранён в этой базе.</strong> Если ты уже скачал ZIP и видел предварительный просмотр, необходимо отдельно подтвердить импорт.</p>
+      <a class="btn btn-primary" href="/catalog/grls/import">Получить и сохранить выгрузку ГРЛС</a>
+    {% endif %}
+  </div>
+</section>
 <div class="two-col">
   <section class="panel"><div class="panel-head"><div><h2>Карта ящиков</h2><p>Быстрый переход к содержимому</p></div><a href="/drawers" class="text-link">Все ящики ↗</a></div>
   <div class="drawer-preview">{% for d in drawers %}<a class="drawer-tile" href="/drawers/{{ d.number }}"><span class="tile-id">№ {{ d.number }}</span><b>{{ d.name }}</b><span class="tile-arrow">↗</span></a>{% else %}<div class="empty-mini">Пока нет ящиков. Выполните <code>seed-demo</code> или импорт.</div>{% endfor %}</div></section>

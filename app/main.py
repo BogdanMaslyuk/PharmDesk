@@ -9,14 +9,14 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 from starlette.requests import Request
 from starlette.middleware.sessions import SessionMiddleware
 
 from .database import get_db, init_db
-from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition
-from .search import search_stock, drawer_matches
+from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition, GrlsImportBatch, GrlsImportRow
+from .search import search_stock, drawer_matches, normalize
 from .version import APP_VERSION
 
 HERE = Path(__file__).resolve().parent
@@ -50,7 +50,16 @@ def home(request: Request, db: Session = Depends(get_db)):
     medicines_count = db.scalar(select(func.count(func.distinct(StockItem.medicine_id)))) or 0
     drawers = db.scalars(select(Drawer).order_by(Drawer.number).limit(12)).all()
     latest = db.scalars(select(StockItem).options(selectinload(StockItem.medicine), selectinload(StockItem.drawer)).order_by(StockItem.id.desc()).limit(6)).all()
-    return render(request, 'home.html', page='home', drawers_count=drawers_count, items_count=items_count, medicines_count=medicines_count, drawers=drawers, latest=latest)
+    registry_batch = db.scalar(select(GrlsImportBatch).order_by(
+        GrlsImportBatch.snapshot_on.desc(), GrlsImportBatch.id.desc()
+    ).limit(1))
+    curated_count = db.scalar(select(func.count(RegisteredProduct.id))) or 0
+    return render(
+        request, 'home.html', page='home',
+        drawers_count=drawers_count, items_count=items_count,
+        medicines_count=medicines_count, drawers=drawers, latest=latest,
+        registry_batch=registry_batch, curated_count=curated_count,
+    )
 
 
 @app.get('/drawers', response_class=HTMLResponse)
@@ -123,8 +132,29 @@ def medicine_detail(medicine_id: int, request: Request, db: Session = Depends(ge
             MedicineRegistrationLink.state == "active",
         ).order_by(MedicineRegistrationLink.id.desc())
     ).all()
+    # Read-only suggestions from the latest *imported snapshot*, not links.
+    # Do not infer dosage, manufacturer, active substance or drug equivalence.
+    registry_batch = db.scalar(
+        select(GrlsImportBatch).order_by(
+            GrlsImportBatch.snapshot_on.desc(), GrlsImportBatch.id.desc()
+        ).limit(1)
+    )
+    candidate_rows = []
+    word = medicine.name.split()[0] if medicine.name.split() else ""
+    root = normalize(word)
+    if registry_batch and len(root) >= 4 and not root.isdigit():
+        candidate_rows = db.scalars(
+            select(GrlsImportRow).where(
+                GrlsImportRow.batch_id == registry_batch.id,
+                GrlsImportRow.trade_key.startswith(root),
+            ).order_by(
+                case((GrlsImportRow.trade_key == root, 0), else_=1),
+                GrlsImportRow.trade_name, GrlsImportRow.id
+            ).limit(5)
+        ).all()
     return render(request, 'medicine.html', page='medicines', medicine=medicine,
-                  verified=verified, related=related, registrations=registrations)
+                  verified=verified, related=related, registrations=registrations,
+                  registry_batch=registry_batch, candidate_rows=candidate_rows)
 
 
 @app.get('/interactions', response_class=HTMLResponse)

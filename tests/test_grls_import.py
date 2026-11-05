@@ -152,7 +152,7 @@ def test_preview_is_read_only_then_explicit_commit_only_adds_staging(env):
 
     saved = confirm(client, csrf, raw)
     assert saved.status_code == 303
-    assert "/catalog/grls?" in saved.headers["location"]
+    assert "/catalog?view=grls" in saved.headers["location"]
     assert db.scalar(select(func.count(GrlsImportBatch.id))) == 1
     assert db.scalar(select(func.count(GrlsImportRow.id))) == 2
     assert db.scalar(select(func.count(RegisteredProduct.id))) == 0
