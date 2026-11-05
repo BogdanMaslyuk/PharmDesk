@@ -116,7 +116,7 @@ def test_search_by_inn_trade_and_registration_with_unverified_badge(inventory):
     expired = client.get("/catalog", params={"status": "Истёкший"})
     assert "Препарат 2" in expired.text
     assert 'href="/catalog/grls/row/' in expired.text
-    assert "Валз" not in expired.text or "Валз" in expired.text.split("value=")[0]
+    assert 'href="/catalog/grls/row/1"' not in expired.text
     invalid = client.get("/catalog", params={"status": "неверный"})
     assert invalid.status_code == 200
     assert "Валз" in invalid.text
