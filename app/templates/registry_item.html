@@ -29,6 +29,14 @@
         <small>{{link.product.source_title}}, сверено пользователем {{link.product.checked_on.strftime('%d.%m.%Y')}}</small>
         {% if link.comparison_note %}<small>{{link.comparison_note}}</small>{% endif %}
         {% if link.state != 'active' %}<small>Причина отмены: {{link.revoke_reason}}</small>{% endif %}
+        <details class="catalog-history">
+          <summary>История сопоставления ({{link.history|length}})</summary>
+          {% for event in link.history|sort(attribute='id', reverse=True) %}
+          <div class="catalog-event"><small>{{event.created_at.strftime('%d.%m.%Y %H:%M')}} ·
+            {% if event.action == 'linked' %}Добавлено{% elif event.action == 'relinked' %}Повторно подтверждено{% else %}Связь отменена{% endif %}
+          </small><small>{{event.explanation or 'Комментарий не указан'}}</small></div>
+          {% endfor %}
+        </details>
       </div>
       {% if link.state == 'active' %}
       <div class="catalog-revoke">
