@@ -44,6 +44,8 @@ class Medicine(Base):
     ingredients: Mapped[list[Ingredient]] = relationship(secondary=medicine_ingredients, back_populates='medicines')
     stock_items: Mapped[list['StockItem']] = relationship(back_populates='medicine')
     clinical_records: Mapped[list['ClinicalRecord']] = relationship(back_populates='medicine')
+    registry_links: Mapped[list["MedicineRegistrationLink"]] = relationship(back_populates="medicine")
+    substance_evidences: Mapped[list["SubstanceEvidence"]] = relationship()
 
 
 class StockItem(Base):
@@ -215,5 +217,17 @@ class MedicineRegistrationLink(Base):
     linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoke_reason: Mapped[str] = mapped_column(Text, default="")
-    medicine: Mapped[Medicine] = relationship()
+    medicine: Mapped[Medicine] = relationship(back_populates="registry_links")
     product: Mapped[RegisteredProduct] = relationship(back_populates="links")
+    history: Mapped[list["RegistryLinkEvent"]] = relationship(back_populates="link")
+
+
+class RegistryLinkEvent(Base):
+    """Append-only, human action history; revocation explanations are never erased."""
+    __tablename__ = "registry_link_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    link_id: Mapped[int] = mapped_column(ForeignKey("medicine_registration_links.id"), index=True)
+    action: Mapped[str] = mapped_column(String(30))
+    explanation: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    link: Mapped[MedicineRegistrationLink] = relationship(back_populates="history")
