@@ -51,6 +51,48 @@ def _medicine(db, medicine_id):
     return medicine
 
 
+def _check_grls_candidate(db, candidate_id, reg, trade, form, strength, comment):
+    """Compare a human-confirmed card with its selected source-snapshot row.
+
+    This is local textual validation ONLY, not a live official verification.
+    Disagreement in registration number or name blocks a source-derived card.
+    Disagreement in raw release text needs a documented explanation.
+    """
+    if candidate_id is None:
+        return comment
+    candidate = db.get(GrlsImportRow, candidate_id)
+    if candidate is None:
+        raise CatalogValidationError("Выбранная исходная строка ГРЛС не найдена.")
+    if normalize(reg) != candidate.registration_key:
+        raise CatalogValidationError(
+            "Номер регистрационного удостоверения не совпадает с выбранной строкой выгрузки."
+        )
+    if normalize(trade) != candidate.trade_key:
+        raise CatalogValidationError(
+            "Торговое название не совпадает с выбранной строкой выгрузки."
+        )
+    source_forms = normalize(candidate.release_forms_raw)
+    form_seen = normalize(form) in source_forms
+    strength_seen = normalize(strength) in source_forms
+    if (not form_seen or not strength_seen) and len(comment) < 40:
+        raise CatalogValidationError(
+            "Форма выпуска или дозировка не найдена точно в исходной строке. "
+            "После проверки актуального реестра подробно объясните расхождение "
+            "в примечании (не менее 40 символов)."
+        )
+    origin_note = (
+        f"\nИсходная выгрузка ГРЛС: пакет #{candidate.batch_id}, "
+        f"файл {candidate.source_workbook}, строка {candidate.source_row}, "
+        f"SHA-256 {candidate.batch.sha256}. "
+        f"Сравнение текста формы: {'совпало' if form_seen else 'не совпало'}; "
+        f"дозировки: {'совпало' if strength_seen else 'не совпало'}. "
+        "Это не проверка регистрации через сеть."
+    )
+    if len(comment) + len(origin_note) > 2000:
+        raise CatalogValidationError("Примечание с информацией об источнике слишком длинное.")
+    return comment + origin_note
+
+
 def _ensure_no_conflicting_active_link(db, medicine_id, intended_product_id=None):
     active = db.scalar(
         select(MedicineRegistrationLink).where(
@@ -154,6 +196,7 @@ def add_registry_entry(
     manufacturer: str = Form(""), substances: str = Form(...),
     source_url: str = Form(...), comparison_note: str = Form(""),
     source_checked: str = Form(""), product_checked: str = Form(""),
+    candidate_id: int | None = Form(None),
     db: Session = Depends(get_db),
 ):
     _check_csrf(request, csrf_token)
@@ -172,6 +215,7 @@ def add_registry_entry(
                 "Подтвердите проверку источника и сопоставление с конкретным товаром."
             )
         _require_explanation(medicine.name, trade, strength, note)
+        note = _check_grls_candidate(db, candidate_id, reg, trade, form, strength, note)
         key = registry_identity_key(reg, trade, form, strength, maker)
         current = db.scalar(select(RegisteredProduct).where(RegisteredProduct.identity_key == key))
         if current is not None:
