@@ -222,6 +222,9 @@ def test_source_validation_and_identity_keys():
         safe_official_url("https://grls.rosminzdrav.ru/")
     with pytest.raises(CatalogValidationError):
         safe_official_url("https://grls.rosminzdrav.ru@evil.example/path")
+    with pytest.raises(CatalogValidationError):
+        safe_official_url("https://grls.minzdrav.gov.ru/record")
+    assert safe_official_url("https://grls.minzdrav.gov.ru/record", allow_legacy=True)[0].startswith("https://")
     assert parse_substance_names("Вещество А\nВещество Б") == ["Вещество А", "Вещество Б"]
     assert registry_identity_key("№1", "Альфа", "таблетки", "10 мг", "Завод") == registry_identity_key(
         "№1", "АЛЬФА", "таблетки", "10мг", "Завод"
