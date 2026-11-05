@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.middleware.sessions import SessionMiddleware
 
 from .database import get_db, init_db
-from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition
+from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition, GrlsImportBatch
 from .search import search_stock, drawer_matches
 from .version import APP_VERSION
 
@@ -50,7 +50,16 @@ def home(request: Request, db: Session = Depends(get_db)):
     medicines_count = db.scalar(select(func.count(func.distinct(StockItem.medicine_id)))) or 0
     drawers = db.scalars(select(Drawer).order_by(Drawer.number).limit(12)).all()
     latest = db.scalars(select(StockItem).options(selectinload(StockItem.medicine), selectinload(StockItem.drawer)).order_by(StockItem.id.desc()).limit(6)).all()
-    return render(request, 'home.html', page='home', drawers_count=drawers_count, items_count=items_count, medicines_count=medicines_count, drawers=drawers, latest=latest)
+    registry_batch = db.scalar(select(GrlsImportBatch).order_by(
+        GrlsImportBatch.snapshot_on.desc(), GrlsImportBatch.id.desc()
+    ).limit(1))
+    curated_count = db.scalar(select(func.count(RegisteredProduct.id))) or 0
+    return render(
+        request, 'home.html', page='home',
+        drawers_count=drawers_count, items_count=items_count,
+        medicines_count=medicines_count, drawers=drawers, latest=latest,
+        registry_batch=registry_batch, curated_count=curated_count,
+    )
 
 
 @app.get('/drawers', response_class=HTMLResponse)
