@@ -25,6 +25,9 @@
     <div class="stat-desc">В выбранном разделе и текущих фильтрах</div>
   </div>
 </div>
+{% if request.query_params.get('imported') %}
+  <div class="notice catalog-success-notice"><strong>ГРЛС сохранён в локальной базе.</strong> Реестровые записи доступны здесь, в основном справочнике. Сопоставление с товарными упаковками пока не подтверждено автоматически.</div>
+{% endif %}
 {% if batch %}
   <div class="notice">
     <strong>Загруженная выгрузка обнаружена.</strong>
