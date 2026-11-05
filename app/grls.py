@@ -122,7 +122,7 @@ def grls_confirm(
         stored = store_grls_batch(db, parsed, original_filename)
         archive.unlink(missing_ok=True)
         return RedirectResponse(
-            f"/catalog/grls?batch_id={stored['batch_id']}&imported=1", status_code=303
+            f"/catalog?view=grls&batch_id={stored['batch_id']}&imported=1", status_code=303
         )
     except GrlsImportError as exc:
         db.rollback()
