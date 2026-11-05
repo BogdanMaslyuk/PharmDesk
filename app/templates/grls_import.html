@@ -18,6 +18,17 @@
 </div>
 {% if error %}<div class="form-error" role="alert">{{error}}</div>{% endif %}
 {% if not preview %}
+<section class="panel">
+  <div class="panel-head"><h2>1. Получить актуальную выгрузку автоматически</h2></div>
+  <div class="panel-body">
+    <p>PharmDesk самостоятельно откроет официальную страницу Минздрава, найдёт ссылку на ZIP и проверит полученный архив. Сохранять данные в базу можно будет только после отдельного подтверждения.</p>
+    <form action="/catalog/grls/fetch" method="post">
+      <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+      <button class="btn btn-primary" type="submit">Получить ZIP напрямую с ГРЛС</button>
+    </form>
+    <p class="field-hint">Если портал недоступен с вашего компьютера, программа покажет ошибку и сохранит существующую базу без изменений. Можно воспользоваться готовым официальным архивом, полученным через GitHub.</p>
+  </div>
+</section>
 <div class="details-grid">
   <section class="panel">
     <div class="panel-head"><h2>1. Выберите файл выгрузки</h2></div>
