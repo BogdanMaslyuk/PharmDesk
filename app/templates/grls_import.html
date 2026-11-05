@@ -64,6 +64,9 @@
       <div class="stat"><div class="stat-title">Дата выгрузки</div><div class="stat-value grls-date">{{preview.snapshot_on.strftime('%d.%m.%Y')}}</div></div>
       <div class="stat"><div class="stat-title">Книг Excel</div><div class="stat-value">{{preview.source_files|length}}</div></div>
     </div>
+    {% if preview.missing_forms %}
+      <div class="notice"><strong>В исходной выгрузке есть {{preview.missing_forms}} записей без заполненного поля «Формы выпуска».</strong> Их нельзя автоматически считать соответствующими конкретной аптечной упаковке.</div>
+    {% endif %}
     {% if preview.old %}
       <div class="form-error"><strong>Устаревшая выгрузка.</strong> Её дата более 30 дней назад. Нельзя использовать её статусы как подтверждение текущей регистрации.</div>
     {% endif %}
