@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Регистрационная карточка {{entry.trade_name}}{% endblock %}
+{% block breadcrumb %}<a href="/catalog">Справочник</a> / Регистрационная карточка{% endblock %}
+{% block content %}
+<a class="backlink" href="/catalog">← К справочнику</a>
+<div class="section-header">
+  <div><div class="eyebrow">ИЗ ОФИЦИАЛЬНОГО ИСТОЧНИКА · ВНЕСЕНО ВРУЧНУЮ</div>
+  <h1>{{entry.trade_name}}</h1>
+  <p>Регистрационный номер: {{entry.registration_number}}</p></div>
+  <span class="review-chip warn">Проверено пользователем, не автоматически</span>
+</div>
+<div class="details-grid">
+  <section class="panel">
+    <div class="panel-head"><h2>Регистрационные сведения</h2></div>
+    <dl class="detail-list">
+      <div><dt>Торговое название</dt><dd>{{entry.trade_name}}</dd></div>
+      <div><dt>Номер регистрации</dt><dd>{{entry.registration_number}}</dd></div>
+      <div><dt>Лекарственная форма</dt><dd>{{entry.dosage_form}}</dd></div>
+      <div><dt>Дозировка</dt><dd>{{entry.strength_text}}</dd></div>
+      <div><dt>Производитель</dt><dd>{{entry.manufacturer or 'Не указан'}}</dd></div>
+      <div><dt>Дата сверки человеком</dt><dd>{{entry.checked_on.strftime('%d.%m.%Y')}}</dd></div>
+    </dl>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>Состав из указанного источника</h2></div>
+    <div class="panel-body">
+      {% for part in entry.substances %}<p class="catalog-substance-large">{{part.substance.name}}</p>
+      {% else %}<p>Действующие вещества не внесены.</p>{% endfor %}
+      <div class="notice"><b>Это не автоматическая идентификация.</b> Названия перенесены из указанного документа человеком. Доза действующего вещества отдельно не подтверждается.</div>
+    </div>
+  </section>
+</div>
+<section class="panel information-panel">
+  <div class="panel-head"><h2>Источник сведений</h2></div>
+  <div class="panel-body">
+    <p><strong>{{entry.source_title}}</strong></p>
+    <p>Источник был открыт и сверён пользователем {{entry.checked_on.strftime('%d.%m.%Y')}}. Система не проверяет актуальный статус регистрации.</p>
+    <a class="btn btn-white" href="{{entry.source_url}}" target="_blank" rel="noopener noreferrer">Открыть указанный источник ↗</a>
+  </div>
+</section>
+<section class="panel information-panel">
+  <div class="panel-head"><h2>Связанные товарные карточки</h2></div>
+  <div class="mini-list">
+    {% for link in links %}
+    <div class="mini-row">
+      <div class="pill-icon">≡</div>
+      <div class="mini-copy"><a class="drug-name" href="/medicines/{{link.medicine.id}}">{{link.medicine.name}}</a><small>{{link.medicine.manufacturer or 'Производитель не указан'}}</small></div>
+      {% if link.state == 'active' %}<span class="review-chip warn">Сопоставлено человеком</span>
+      {% else %}<span class="review-chip blocked">Связь отменена</span>{% endif %}
+    </div>
+    {% else %}<div class="empty-mini">Товарные карточки не связаны.</div>{% endfor %}
+  </div>
+</section>
+<div class="notice">Сходство по составу не означает взаимозаменяемость. Перед отпуском препарата необходимо сверять актуальную инструкцию, требования отпуска и назначение.</div>
+{% endblock %}
