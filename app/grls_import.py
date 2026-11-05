@@ -153,6 +153,7 @@ def parse_grls_archive(raw):
     source_files = []
     total_size = 0
     total_rows = 0
+    missing_forms = 0
     seen_source = set()
     try:
         with ZipFile(BytesIO(raw)) as package:
@@ -229,12 +230,17 @@ def parse_grls_archive(raw):
                             or re.fullmatch(r"\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}", reg)
                         ):
                             continue
-                        if not reg or not trade or not forms:
-                            # Never invent missing registry identity fields.
+                        if not reg or not trade:
+                            # A real dated GRLS export may omit forms but must
+                            # retain registration number and trade name.
                             raise GrlsImportError(
-                                f"Книга «{name}», строка {source_row}: отсутствует номер регистрации, "
-                                "торговое название либо формы выпуска."
+                                f"Книга «{name}», строка {source_row}: отсутствует номер регистрации "
+                                "или торговое название."
                             )
+                        if not forms:
+                            # Keep the incomplete source row, visibly unverified,
+                            # rather than discarding the entire official ZIP.
+                            missing_forms += 1
                         entries.append({
                             "source_workbook": name, "source_row": source_row,
                             "status_from_filename": status,
@@ -258,7 +264,8 @@ def parse_grls_archive(raw):
     return {
         "sha256": digest, "snapshot_on": next(iter(snapshots)),
         "source_files": source_files, "status_counts": dict(status_counts),
-        "count": total_rows, "sample": entries[:15], "rows": entries,
+        "count": total_rows, "missing_forms": missing_forms,
+        "sample": entries[:15], "rows": entries,
     }
 
 
