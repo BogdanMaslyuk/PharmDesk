@@ -1,9 +1,7 @@
-"""Inspect public GRLS page for official downloadable dataset links (no file saved)."""
-import html
+"""Inspect public GRLS download controls, never save source content."""
 import re
 from html.parser import HTMLParser
 from urllib.request import Request, urlopen
-from urllib.parse import urljoin
 
 class Links(HTMLParser):
     def __init__(self):
@@ -20,10 +18,10 @@ page = response.read().decode("utf-8", "replace")
 print("PAGE", response.status, len(page), "bytes")
 parser = Links()
 parser.feed(page)
-for tag, attrs in parser.links:
-    string = " ".join(str(x) for x in attrs.values())
-    if re.search(r"zip|download|export|xls|выгруз|скач|архив|GetFile|FileDownload", string, re.I):
-        print("NODE",tag," ".join(f"{k}={v}" for k,v in attrs.items())[:550])
-for i, line in enumerate(page.splitlines()):
-    if re.search(r"zip|download|export|xls|выгруз|скач|архив|GetFile|FileDownload", line, re.I):
-        print("TEXT",i,re.sub(r"\s+"," ",html.unescape(re.sub(r"<[^>]*>"," ",line)))[:550])
+print("LINKS",len(parser.links))
+for tag,attrs in parser.links:
+    if tag in ("a","form","script","link"):
+        print("NODE",tag," ".join(f"{k}={v}" for k,v in attrs.items())[:300])
+for i,line in enumerate(page.splitlines()):
+    if re.search(r"zip|download|export|xls|выгруз|скач|архив|GetFile|FileDownload|Reestr|Upload|File",line,re.I):
+        print("RAW",i,line.strip()[:450])
