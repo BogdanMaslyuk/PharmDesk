@@ -16,7 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .database import get_db, init_db
 from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord
-from .search import stock_matches, drawer_matches
+from .search import search_stock, drawer_matches
 from .version import APP_VERSION
 
 HERE = Path(__file__).resolve().parent
@@ -73,14 +73,13 @@ def drawer_detail(number: int, request: Request, q: str = Query('', max_length=1
                  .where(StockItem.drawer_id == drawer.id).join(Medicine)
                  .order_by(Medicine.name))
     items = db.scalars(statement).all()
-    if q.strip():
-        items = [item for item in items if stock_matches(item, q)]
+    items, approximate = search_stock(items, q)
     count = db.scalar(select(func.count(StockItem.id)).where(StockItem.drawer_id == drawer.id)) or 0
     quality = {}
     for record in db.scalars(select(ReviewRecord).where(ReviewRecord.drawer_number == number)).all():
         code = record.confirmed_code or record.article_code
         quality[code] = record
-    return render(request, 'drawer.html', page='drawers', drawer=drawer, items=items, count=count, q=q, quality=quality)
+    return render(request, 'drawer.html', page='drawers', drawer=drawer, items=items, count=count, q=q, quality=quality, approximate=approximate)
 
 @app.get('/medicines', response_class=HTMLResponse)
 def medicines(request: Request, q: str = Query('', max_length=100),
@@ -91,8 +90,7 @@ def medicines(request: Request, q: str = Query('', max_length=100),
     if drawer is not None:
         statement = statement.join(Drawer).where(Drawer.number == drawer)
     items = db.scalars(statement).all()
-    if q.strip():
-        items = [item for item in items if stock_matches(item, q)]
+    items, approximate = search_stock(items, q)
     total = len(items)
     all_drawers = db.scalars(select(Drawer).order_by(Drawer.number)).all()
     all_reviews = db.scalars(select(ReviewRecord)).all()
@@ -101,7 +99,7 @@ def medicines(request: Request, q: str = Query('', max_length=100),
         code = record.confirmed_code if record.state == "approved" and record.confirmed_code else record.article_code
         quality[(record.drawer_number, code)] = record
     return render(request, 'medicines.html', page='medicines', items=items[:150], total=total,
-                  q=q, drawer=drawer, drawers=all_drawers, quality=quality)
+                  q=q, drawer=drawer, drawers=all_drawers, quality=quality, approximate=approximate)
 
 @app.get('/medicines/{medicine_id}', response_class=HTMLResponse)
 def medicine_detail(medicine_id: int, request: Request, db: Session = Depends(get_db)):
@@ -146,9 +144,9 @@ def api_search(q: str = Query('', min_length=2, max_length=100), db: Session = D
     stocks = db.scalars(select(StockItem).join(Medicine)
         .options(selectinload(StockItem.medicine).selectinload(Medicine.ingredients), selectinload(StockItem.drawer))
         .order_by(Medicine.name)).all()
-    matches = [s for s in stocks if stock_matches(s, q)]
+    found, approximate = search_stock(stocks, q)
     return [{'id': s.medicine.id, 'name': s.medicine.name, 'code': s.article_code,
-             'drawer': s.drawer.number} for s in matches[:10]]
+             'drawer': s.drawer.number, 'approximate': approximate} for s in found[:10]]
 
 @app.get('/health')
 def health():
@@ -163,3 +161,6 @@ app.include_router(review_router)
 
 from .identity import router as identity_router  # noqa: E402
 app.include_router(identity_router)
+
+from .quality import router as quality_router  # noqa: E402
+app.include_router(quality_router)
