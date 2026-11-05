@@ -53,7 +53,7 @@ while ($true) {
     Write-Host ""
     Write-Host "======================================" -ForegroundColor Cyan
     # Read the actual installed application version, not a stale menu label.
-    $versionFile = Join-Path $root "app\\version.py"
+    $versionFile = Join-Path $root "app\version.py"
     $version = "unknown"
     if (Test-Path -LiteralPath $versionFile) {
         $line = Select-String -Path $versionFile -Pattern 'APP_VERSION\s*=\s*"([^"]+)"' | Select-Object -First 1
