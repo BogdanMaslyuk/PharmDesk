@@ -5,7 +5,31 @@
 <a class="backlink" href="/medicines">← Все препараты</a><section class="medicine-hero"><div class="medicine-icon">✚</div><div><div class="eyebrow">ТОВАРНАЯ КАРТОЧКА</div><h1>{{ medicine.name }}</h1><p>{{ medicine.manufacturer or 'Производитель не указан' }}</p></div></section>
 <div class="details-grid"><section class="panel"><div class="panel-head"><h2>Основная информация</h2></div><dl class="detail-list"><div><dt>Наименование</dt><dd>{{ medicine.name }}</dd></div><div><dt>Производитель</dt><dd>{{ medicine.manufacturer or 'Не указан' }}</dd></div><div><dt>Действующее вещество</dt><dd>{% if medicine.ingredients %}{{ medicine.ingredients|map(attribute='name')|join(', ') }} <small class="muted">(предварительные справочные данные)</small>{% else %}Не сопоставлено с МНН{% endif %}</dd></div><div><dt>Показания</dt><dd>Нет проверенной информации в локальной базе</dd></div><div><dt>Противопоказания</dt><dd>Нет проверенной информации в локальной базе</dd></div></dl></section>
 <section class="panel"><div class="panel-head"><h2>Где находится</h2></div><div class="location-list">{% for s in medicine.stock_items %}<a href="/drawers/{{ s.drawer.number }}" class="location-box"><span class="location-number">№ {{ s.drawer.number }}</span><span><b>{{ s.drawer.name }}</b><small>Код {{ s.article_code }} · Остаток не проверен</small></span><span>↗</span></a>{% endfor %}</div></section></div>
-<section class="panel information-panel"><div class="panel-head"><div><h2>Действующее вещество — документальное подтверждение</h2><p>Зарегистрируйте проверку международного непатентованного наименования по официальной инструкции, без автоматических догадок.</p></div><a class="text-link" href="/medicines/{{medicine.id}}/identity">Открыть проверку ↗</a></div></section>
-<section class="panel information-panel"><div class="panel-head"><div><h2>Официальные сведения</h2><p>Выводятся только записи с подтверждённым источником.</p></div></div>{% for record in verified %}<div class="clinical-row"><b>{{ record.section }}</b><p>{{ record.text }}</p><a href="{{ record.source_url }}" rel="noopener noreferrer" target="_blank">{{ record.source_title }} ↗</a><small>Проверено: {{ record.reviewed_on.strftime('%d.%m.%Y') }}</small></div>{% else %}<div class="info-placeholder"><span>ⓘ</span><div><b>Инструкция пока не подключена</b><p>Не используйте пустую карточку для назначения, замены или оценки взаимодействий. Проверяйте актуальную инструкцию в <a href="https://grls.minzdrav.gov.ru/" target="_blank" rel="noopener noreferrer">ГРЛС Минздрава России ↗</a>.</p></div></div>{% endfor %}</section>
+<section class="panel information-panel">
+<div class="panel-head"><div><h2>Связь с Государственным реестром лекарственных средств</h2>
+<p>Отдельные регистрационные карточки, форма выпуска, дозировка, состав и проверенный человеком источник. Автоматического сопоставления нет.</p></div>
+<a class="text-link" href="/medicines/{{medicine.id}}/registry">Открыть сопоставление ↗</a></div>
+</section>
+{% if registrations %}
+<section class="panel information-panel">
+  <div class="panel-head"><div><h2>Внесённые регистрационные сведения</h2><p>Связаны с товаром человеком после сверки конкретной формы и дозировки. Актуальность регистрации не проверяется автоматически.</p></div></div>
+  <div class="mini-list">
+    {% for match in registrations %}
+    <div class="mini-row"><div class="pill-icon">▣</div>
+      <div class="mini-copy">
+        <a class="drug-name" href="/catalog/{{match.product.id}}">{{match.product.trade_name}}</a>
+        <small>Регистрационный номер: {{match.product.registration_number}} · {{match.product.dosage_form}} · {{match.product.strength_text}}</small>
+        <small>Действующие вещества (внесены вручную): {{match.product.substances|map(attribute='substance.name')|join(', ')}}</small>
+        <small>{{match.product.source_title}} · сверено пользователем {{match.product.checked_on.strftime('%d.%m.%Y')}}</small>
+        <a class="text-link" href="{{match.product.source_url}}" target="_blank" rel="noopener noreferrer">Открыть источник ↗</a>
+      </div>
+      <span class="review-chip warn">Ручная сверка</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+<section class="panel information-panel"><div class="panel-head"><div><h2>Старые заметки о составе</h2><p>Свободные ручные заметки из предыдущей версии. Для нового структурированного сопоставления используйте раздел с регистрационной карточкой выше.</p></div><a class="text-link" href="/medicines/{{medicine.id}}/identity">Открыть старые заметки ↗</a></div></section>
+<section class="panel information-panel"><div class="panel-head"><div><h2>Официальные сведения</h2><p>Выводятся только записи с подтверждённым источником.</p></div></div>{% for record in verified %}<div class="clinical-row"><b>{{ record.section }}</b><p>{{ record.text }}</p><a href="{{ record.source_url }}" rel="noopener noreferrer" target="_blank">{{ record.source_title }} ↗</a><small>Проверено: {{ record.reviewed_on.strftime('%d.%m.%Y') }}</small></div>{% else %}<div class="info-placeholder"><span>ⓘ</span><div><b>Инструкция пока не подключена</b><p>Не используйте пустую карточку для назначения, замены или оценки взаимодействий. Проверяйте актуальную инструкцию в <a href="https://grls.rosminzdrav.ru/" target="_blank" rel="noopener noreferrer">ГРЛС Минздрава России ↗</a>.</p></div></div>{% endfor %}</section>
 {% if related %}<section class="panel information-panel"><div class="panel-head"><div><h2>Другие товарные карточки с указанным веществом</h2><p>Это навигационные совпадения. Они не означают официальную взаимозаменяемость.</p></div></div><div class="mini-list">{% for m in related %}<a href="/medicines/{{ m.id }}" class="mini-row"><div class="pill-icon">✚</div><div class="mini-copy"><b>{{ m.name }}</b><small>{{ m.manufacturer or 'Производитель не указан' }}</small></div><span>↗</span></a>{% endfor %}</div></section>{% endif %}
 {% endblock %}

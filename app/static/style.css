@@ -84,3 +84,20 @@ h1,h2,p{margin-top:0}h1{font-size:32px;line-height:1.2;letter-spacing:-.8px;marg
 .quality-reason b{font-size:16px;color:#215caa}.quality-reason.active,.quality-reason:hover{border-color:#80a9e6;background:#eaf2ff}
 .search-result.approximate{background:#fff9ed}
 .search-result.approximate:hover{background:#fff0cf}
+
+/* v0.4 source-backed, manually curated medicinal product registry */
+.catalog-substance{display:block;padding:2px 0;color:#294a6e;font-size:13px;font-weight:600}
+.catalog-substance-large{font-size:15px;font-weight:600;padding:8px 10px;margin:6px 0;background:#f3f7fc;border-radius:8px}
+.catalog-linked-record{align-items:flex-start}
+.catalog-linked-record .mini-copy{min-width:0;flex:1}
+.catalog-revoke{min-width:190px;max-width:230px}
+.catalog-revoke details{margin-top:9px;border:1px solid #e3e9f2;border-radius:9px;padding:9px}
+.catalog-revoke summary{cursor:pointer;color:#924747;font-size:12px}
+.catalog-revoke form{margin-top:12px}
+.catalog-revoke .form-field input{max-width:210px}
+.catalog-revoke .btn{max-width:210px}
+@media(max-width:760px){.catalog-linked-record{flex-wrap:wrap}.catalog-revoke{min-width:100%;max-width:100%}}
+
+.catalog-history{margin-top:7px;font-size:12px;color:#596f85}
+.catalog-history summary{cursor:pointer;font-weight:600}
+.catalog-event{display:flex;flex-direction:column;gap:3px;margin:8px 0 0 5px;padding:7px 10px;border-left:2px solid #d8e4f3;background:#f7f9fc;border-radius:0 7px 7px 0}

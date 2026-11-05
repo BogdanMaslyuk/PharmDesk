@@ -24,6 +24,8 @@ REQUIRED_TABLES = (
     "drawers", "medicines", "stock_items", "review_records",
     "review_decisions", "source_images", "inventory_events",
     "substance_evidence",
+    "registered_products", "registered_substances",
+    "registered_compositions", "medicine_registration_links", "registry_link_events",
 )
 
 

@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.middleware.sessions import SessionMiddleware
 
 from .database import get_db, init_db
-from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord
+from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition
 from .search import search_stock, drawer_matches
 from .version import APP_VERSION
 
@@ -111,7 +111,20 @@ def medicine_detail(medicine_id: int, request: Request, db: Session = Depends(ge
     related = []
     if ingredient_ids:
         related = db.scalars(select(Medicine).join(Medicine.ingredients).where(Medicine.id != medicine.id, Medicine.ingredients.any(id=ingredient_ids[0])).distinct().limit(10)).all()
-    return render(request, 'medicine.html', page='medicines', medicine=medicine, verified=verified, related=related)
+    registrations = db.scalars(
+        select(MedicineRegistrationLink)
+        .options(
+            selectinload(MedicineRegistrationLink.product)
+            .selectinload(RegisteredProduct.substances)
+            .selectinload(RegisteredComposition.substance)
+        )
+        .where(
+            MedicineRegistrationLink.medicine_id == medicine_id,
+            MedicineRegistrationLink.state == "active",
+        ).order_by(MedicineRegistrationLink.id.desc())
+    ).all()
+    return render(request, 'medicine.html', page='medicines', medicine=medicine,
+                  verified=verified, related=related, registrations=registrations)
 
 
 @app.get('/interactions', response_class=HTMLResponse)
@@ -161,6 +174,9 @@ app.include_router(review_router)
 
 from .identity import router as identity_router  # noqa: E402
 app.include_router(identity_router)
+
+from .catalog import router as catalog_router  # noqa: E402
+app.include_router(catalog_router)
 
 from .quality import router as quality_router  # noqa: E402
 app.include_router(quality_router)

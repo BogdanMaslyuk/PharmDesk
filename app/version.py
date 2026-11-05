@@ -1,2 +1,2 @@
 """Version string shared by the local application and maintenance commands."""
-APP_VERSION = "0.3.2"
+APP_VERSION = "0.4.0"

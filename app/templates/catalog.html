@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Фармакологический справочник{% endblock %}
+{% block breadcrumb %}Фармакологический справочник{% endblock %}
+{% block content %}
+<div class="section-header"><div>
+  <div class="eyebrow">ДОКУМЕНТАЛЬНО ПОДТВЕРЖДАЕМЫЕ СВЕДЕНИЯ</div>
+  <h1>Справочник зарегистрированных препаратов</h1>
+  <p>Регистрационные карточки, состав и источники, внесённые вручную по официальным реестрам. Без автоматического распознавания действующих веществ.</p>
+</div></div>
+<div class="notice">
+  <strong>Обратите внимание.</strong> Это локальный каталог сведений, записанных пользователем, а не прямое подключение к ГРЛС.
+  PharmDesk не проверяет автоматически действительность регистрационного удостоверения, актуальность инструкции, взаимозаменяемость или безопасность.
+  <a href="https://grls.rosminzdrav.ru/" target="_blank" rel="noopener noreferrer">Открыть ГРЛС Минздрава ↗</a>
+</div>
+<div class="stat-grid">
+  <div class="stat"><div class="stat-title">Карточек в справочнике</div><div class="stat-value">{{total}}</div><div class="stat-desc">Внесены пользователем</div></div>
+  <div class="stat"><div class="stat-title">Результатов поиска</div><div class="stat-value">{{count}}</div><div class="stat-desc">По локальным записям</div></div>
+</div>
+<form action="/catalog" class="search-row" method="get">
+  <span>⌕</span><input type="search" name="q" value="{{q}}" placeholder="Номер регистрации, торговое название, вещество, форма" aria-label="Поиск в справочнике">
+  <button class="btn btn-primary" type="submit">Искать</button>
+</form>
+<section class="panel table-panel">
+  <div class="panel-head"><div><h2>Регистрационные карточки</h2><p>Для создания новой записи откройте товарную карточку в разделе «Препараты».</p></div><span class="counter">{{count}} записей</span></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Торговое название</th><th>Номер регистрации</th><th>Форма / дозировка</th><th>Действующие вещества</th><th>Источник</th><th></th></tr></thead>
+    <tbody>
+    {% for item in items %}
+      <tr>
+        <td><a class="drug-name" href="/catalog/{{item.id}}">{{item.trade_name}}</a><small class="muted">{{item.manufacturer or 'Производитель не указан'}}</small></td>
+        <td class="code">{{item.registration_number}}</td>
+        <td>{{item.dosage_form}} <small class="muted">{{item.strength_text}}</small></td>
+        <td>{% for part in item.substances %}<span class="catalog-substance">{{part.substance.name}}</span>{% endfor %}</td>
+        <td><span class="review-chip warn">Внесено вручную</span><small class="muted">{{item.checked_on.strftime('%d.%m.%Y')}}</small></td>
+        <td><a class="text-link" href="/catalog/{{item.id}}">Открыть ↗</a></td>
+      </tr>
+    {% else %}<tr><td colspan="6" class="empty-cell">Карточек нет. Начните с товарной позиции и конкретной записи в официальном реестре.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% if pages > 1 %}<div class="review-pages">
+    {% if page_number > 1 %}<a class="btn btn-white" href="/catalog?q={{q|urlencode}}&page_number={{page_number-1}}">← Назад</a>{% endif %}
+    <span>Страница {{page_number}} из {{pages}}</span>
+    {% if page_number < pages %}<a class="btn btn-white" href="/catalog?q={{q|urlencode}}&page_number={{page_number+1}}">Вперёд →</a>{% endif %}
+  </div>{% endif %}
+</section>
+<div class="notice">Наличие в справочнике не означает наличие на складе. Запись в справочнике не является назначением, основанием для замены терапии или результатом проверки взаимодействий.</div>
+{% endblock %}

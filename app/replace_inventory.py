@@ -98,6 +98,8 @@ def replace_stock(db: Session, raw: bytes, filename: str):
                 ~Medicine.stock_items.any(),
                 ~Medicine.clinical_records.any(),
                 ~Medicine.ingredients.any(),
+                ~Medicine.registry_links.any(),
+                ~Medicine.substance_evidences.any(),
             )
         ).all()
         for medicine in orphans:

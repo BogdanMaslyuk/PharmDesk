@@ -1,7 +1,6 @@
 """Source-backed manual identity notes. Never automatically assign active ingredients."""
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -10,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
+from .catalog_sources import CatalogValidationError, safe_official_url
 from .database import get_db
 from .manage import _check_csrf, _csrf
 from .models import Medicine, SubstanceEvidence, InventoryEvent
@@ -59,16 +59,15 @@ def save_identity(medicine_id: int, request: Request, csrf_token: str = Form(...
             raise ValueError("Комментарий слишком длинный.")
         if len(url) > 800:
             raise ValueError("Ссылка на источник слишком длинная.")
-        info = urlsplit(url)
-        # Deliberately restrict initial evidence collection to the official
-        # Russian medicines register; it is still checked only by a human.
-        if info.scheme != "https" or info.hostname != "grls.minzdrav.gov.ru":
-            raise ValueError("Для этой версии нужен адрес инструкции на https://grls.minzdrav.gov.ru/")
+        try:
+            url, official_title = safe_official_url(url, specific=False, allow_legacy=True)
+        except CatalogValidationError as exc:
+            raise ValueError(str(exc)) from exc
         if visually_checked != "yes":
             raise ValueError("Подтвердите, что лично сверили вещества с инструкцией.")
         db.add(SubstanceEvidence(
             medicine_id=medicine_id, substances_text=substances,
-            source_title="ГРЛС Минздрава России (указано вручную)",
+            source_title=official_title + " (указано вручную)",
             source_url=url, notes=note, review_status="entered_by_user",
             checked_at=datetime.now(timezone.utc),
         ))
