@@ -168,3 +168,35 @@ def test_latest_snapshot_selected_search_filters_do_not_modify_source(inventory)
     assert before == 35
     _ = client.get("/catalog", params={"q": "валсартан", "status": "Действующий"})
     assert db.scalar(select(func.count(GrlsImportRow.id))) == before
+
+
+def test_pharmacy_medicine_card_shows_unverified_source_candidates(inventory):
+    client, db = inventory
+    item = db.scalar(select(StockItem))
+    empty = client.get(f"/medicines/{item.medicine_id}")
+    assert empty.status_code == 200
+    assert "Возможные записи ГРЛС по названию" not in empty.text
+    make_snapshot(db)
+    shown = client.get(f"/medicines/{item.medicine_id}")
+    assert shown.status_code == 200
+    assert "Возможные записи ГРЛС по названию" in shown.text
+    assert "Это не подтверждённое сопоставление" in shown.text
+    assert "Валсартан" in shown.text
+    assert "ЛП-000001" in shown.text
+    assert f"/medicines/{item.medicine_id}/registry?candidate_id=" in shown.text
+    assert db.scalar(select(func.count(RegisteredProduct.id))) == 0
+    assert db.scalar(select(func.count(MedicineRegistrationLink.id))) == 0
+
+
+def test_diagnostic_distinguishes_grls_imports_from_curated_records(tmp_path):
+    from app.maintenance import diagnose
+    engine = create_engine("sqlite:///" + str(tmp_path / "pharmdesk.sqlite3"))
+    Base.metadata.create_all(engine)
+    with sessionmaker(bind=engine, expire_on_commit=False)() as db:
+        make_snapshot(db, rows=3)
+    results = diagnose(db_file=tmp_path / "pharmdesk.sqlite3", root=tmp_path)
+    assert results["ok"] is True
+    assert results["grls_batches"] == 1
+    assert results["grls_rows"] == 3
+    assert results["registered_products"] == 0
+    engine.dispose()
