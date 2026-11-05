@@ -52,7 +52,16 @@ function Run-LocalCommand {
 while ($true) {
     Write-Host ""
     Write-Host "======================================" -ForegroundColor Cyan
-    Write-Host "         PHARMDESK v0.3.1"
+    # Read the actual installed application version, not a stale menu label.
+    $versionFile = Join-Path $root "app\\version.py"
+    $version = "unknown"
+    if (Test-Path -LiteralPath $versionFile) {
+        $line = Select-String -Path $versionFile -Pattern 'APP_VERSION\s*=\s*"([^"]+)"' | Select-Object -First 1
+        if ($null -ne $line -and $line.Matches.Count -gt 0) {
+            $version = $line.Matches[0].Groups[1].Value
+        }
+    }
+    Write-Host ("         PHARMDESK v" + $version)
     Write-Host "======================================" -ForegroundColor Cyan
     Write-Host "1. Запустить приложение"
     Write-Host "2. Обновить программу из GitHub"
