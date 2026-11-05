@@ -226,7 +226,7 @@ def parse_grls_archive(raw):
                         # They are not medicines and must not become false rows.
                         if not trade and not forms and (
                             source_row == header_line + 1
-                            or re.fullmatch(r"\\d{2}\\.\\d{2}\\.\\d{4}\\s+\\d{2}:\\d{2}:\\d{2}", reg)
+                            or re.fullmatch(r"\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}", reg)
                         ):
                             continue
                         if not reg or not trade or not forms:
