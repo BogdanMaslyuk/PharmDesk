@@ -287,3 +287,18 @@ def test_full_inventory_replacement_preserves_curated_registry_links(environment
     assert db.scalar(select(StockItem)).medicine.name == "Другой учебный товар 10 мг"
     # The new stock medicine remains unlinked: no automatic transfer by code.
     assert db.scalar(select(StockItem)).medicine.id != medicine_id
+
+
+def test_one_active_registration_at_a_time_prevents_conflicting_substances(environment):
+    client, db, csrf, medicine_id = environment
+    initial = client.post(f"/medicines/{medicine_id}/registry", data=form(csrf),
+                          follow_redirects=False)
+    assert initial.status_code == 303
+    conflict = form(csrf)
+    conflict["registration_number"] = "УЧ-0002/01"
+    conflict["substances"] = "Другое учебное вещество"
+    denied = client.post(f"/medicines/{medicine_id}/registry", data=conflict)
+    assert "уже связана другая" in denied.text
+    assert db.scalar(select(func.count(RegisteredProduct.id))) == 1
+    assert db.scalar(select(func.count(RegisteredSubstance.id))) == 2
+    assert db.scalar(select(func.count(MedicineRegistrationLink.id))) == 1
