@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Кандидаты из выгрузки ГРЛС{% endblock %}
+{% block breadcrumb %}<a href="/catalog">Справочник</a> / Поиск в выгрузке{% endblock %}
+{% block content %}
+<a class="backlink" href="/medicines/{{medicine.id}}">← К товарной карточке</a>
+<div class="section-header"><div>
+  <div class="eyebrow">ПОИСК ДЛЯ РУЧНОЙ СВЕРКИ · НЕ СОПОСТАВЛЕНО</div>
+  <h1>Поиск в выгрузке ГРЛС</h1>
+  <p><b>Товар аптеки:</b> {{medicine.name}} · {{medicine.manufacturer or 'Производитель не указан'}}</p>
+</div></div>
+<div class="notice">
+  <strong>Результаты — только кандидаты по тексту торгового названия.</strong>
+  Программа НЕ проверяет совпадение формы выпуска, дозировки, производителя или действительности регистрационного удостоверения.
+  Сопоставление с товаром не сохранено. Откройте оригинальную запись ГРЛС, затем подтвердите всё вручную.
+</div>
+<section class="panel">
+  <div class="panel-head"><h2>Уточнить поиск</h2></div>
+  <div class="panel-body">
+    <form action="/catalog/grls/matches/{{medicine.id}}" method="get" class="review-filters">
+      <label>Фрагмент торгового названия (минимум 4 знака)
+        <input type="search" name="q" maxlength="100" value="{{q}}" placeholder="Например, Валз">
+      </label>
+      <label>Дата снимка
+        <select name="batch_id">
+          {% for b in batches %}
+          <option value="{{b.id}}" {% if batch and b.id == batch.id %}selected{% endif %}>{{b.snapshot_on.strftime('%d.%m.%Y')}} · {{b.row_count}} строк</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="btn btn-primary" type="submit">Найти кандидатов</button>
+    </form>
+  </div>
+</section>
+{% if batch %}
+<div class="notice">Используется файл с датой {{batch.snapshot_on.strftime('%d.%m.%Y')}}. Совпадение названия не подтверждает актуальную регистрацию.</div>
+<section class="panel table-panel">
+  <div class="panel-head"><h2>Возможные записи для проверки</h2><span class="counter">Показано не более 50</span></div>
+  <div class="table-wrap"><table><thead>
+    <tr><th>Торговое название</th><th>Регистрационный номер</th><th>МНН в файле</th><th>Формы выпуска из файла</th><th>Статус из файла</th><th></th></tr>
+  </thead><tbody>
+    {% for row in rows %}
+    <tr>
+      <td><a class="drug-name" href="/catalog/grls/row/{{row.id}}">{{row.trade_name}}</a></td>
+      <td class="code">{{row.registration_number}}</td>
+      <td>{{row.inn_raw or 'Не указано'}}</td>
+      <td class="grls-long-field">{{row.release_forms_raw}}</td>
+      <td><span class="review-chip warn">{{row.status_from_filename}}</span></td>
+      <td><a class="text-link" href="/medicines/{{medicine.id}}/registry?candidate_id={{row.id}}">Начать ручную сверку ↗</a></td>
+    </tr>
+    {% else %}<tr><td colspan="6" class="empty-cell">Кандидатов по этому фрагменту не найдено. Нельзя делать вывод, что препарат отсутствует в реестре.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% else %}<div class="notice">Сначала <a href="/catalog/grls/import">импортируйте ZIP-выгрузку ГРЛС</a> в отдельный справочник.</div>{% endif %}
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Исходная реестровая строка{% endblock %}
+{% block breadcrumb %}<a href="/catalog/grls">Выгрузки ГРЛС</a> / Строка{% endblock %}
+{% block content %}
+<a class="backlink" href="/catalog/grls?batch_id={{row.batch_id}}">← К выгрузке</a>
+<div class="section-header"><div><div class="eyebrow">ИСТОЧНИК · ТОЛЬКО ЧТЕНИЕ</div>
+  <h1>{{row.trade_name}}</h1><p>Регистрационный номер из файла: <b>{{row.registration_number}}</b></p>
+</div><span class="review-chip warn">Источник не удостоверен</span></div>
+<div class="notice"><strong>Не является подтверждением действующей регистрации.</strong>
+  Приведены текстовые поля, полученные из локального файла, который загрузил пользователь.
+  Перед привязкой к товару проверьте актуальную запись на официальном сайте ГРЛС, форму и дозировку.
+</div>
+<section class="panel">
+  <div class="panel-head"><h2>Данные исходной строки</h2></div>
+  <dl class="detail-list">
+    <div><dt>Номер регистрационного удостоверения</dt><dd>{{row.registration_number}}</dd></div>
+    <div><dt>Торговое наименование</dt><dd>{{row.trade_name}}</dd></div>
+    <div><dt>МНН / химическое наименование из файла</dt><dd>{{row.inn_raw or 'Не указано'}}</dd></div>
+    <div><dt>Формы выпуска (полный текст)</dt><dd>{{row.release_forms_raw}}</dd></div>
+    <div><dt>Владелец регистрационного удостоверения</dt><dd>{{row.certificate_holder or 'Не указан'}}</dd></div>
+    <div><dt>Статус из имени книги</dt><dd>{{row.status_from_filename}}</dd></div>
+    <div><dt>Дата выгрузки</dt><dd>{{row.batch.snapshot_on.strftime('%d.%m.%Y')}}</dd></div>
+    <div><dt>Книга и номер строки</dt><dd>{{row.source_workbook}}, строка {{row.source_row}}</dd></div>
+    <div><dt>SHA-256 загруженного архива</dt><dd><code>{{row.batch.sha256}}</code></dd></div>
+  </dl>
+</section>
+<div class="notice">
+  <a href="{{row.batch.source_url}}" target="_blank" rel="noopener noreferrer">Открыть официальный реестр для самостоятельной проверки ↗</a>.
+  Обратите внимание: это ссылка на раздел выгрузок, а не на конкретную регистрационную карточку.
+</div>
+{% endblock %}

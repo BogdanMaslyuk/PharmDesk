@@ -55,16 +55,31 @@
   {% else %}<div class="empty-mini">С этим товаром пока не связана ни одна регистрационная запись.</div>{% endfor %}
   </div>
 </section>
+{% if candidate %}
+<section class="panel">
+  <div class="panel-head"><h2>Кандидат из загруженной выгрузки ГРЛС — не подтверждён</h2></div>
+  <div class="panel-body">
+    <p><b>Регистрационный номер:</b> {{candidate.registration_number}} · <b>Название:</b> {{candidate.trade_name}}</p>
+    <p><b>МНН, как записано в выгрузке:</b> {{candidate.inn_raw or 'Не указано'}}</p>
+    <p><b>Формы выпуска, исходный текст:</b> {{candidate.release_forms_raw}}</p>
+    <p><b>Владелец РУ (не обязательно производитель):</b> {{candidate.certificate_holder or 'Не указан'}}</p>
+    <p><b>Статус из файла:</b> {{candidate.status_from_filename}} · <b>Дата:</b> {{candidate.batch.snapshot_on.strftime('%d.%m.%Y')}}</p>
+    <p><a class="text-link" href="/catalog/grls/row/{{candidate.id}}">Проверить происхождение строки ↗</a></p>
+    <div class="notice">Предзаполнены только номер регистрации и торговое название. Дозировка, лекарственная форма, состав и ссылка на конкретную актуальную запись должны быть сверены и внесены человеком. Никакая связь пока не создана.</div>
+  </div>
+</section>
+{% endif %}
 <div class="details-grid">
 <section class="panel">
   <div class="panel-head"><h2>1. Внести конкретную регистрационную карточку</h2></div>
   <div class="panel-body">
     <form method="post" action="/medicines/{{medicine.id}}/registry">
       <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+      {% if candidate %}<input type="hidden" name="candidate_id" value="{{candidate.id}}">{% endif %}
       <label class="form-field">Номер регистрационного удостоверения
-        <input name="registration_number" maxlength="120" required placeholder="Точный номер из реестра"></label>
+        <input name="registration_number" maxlength="120" required placeholder="Точный номер из реестра" value="{{candidate.registration_number if candidate else ''}}"></label>
       <label class="form-field">Торговое наименование по реестру
-        <input name="trade_name" maxlength="250" required placeholder="Точное название"></label>
+        <input name="trade_name" maxlength="250" required placeholder="Точное название" value="{{candidate.trade_name if candidate else ''}}"></label>
       <label class="form-field">Лекарственная форма
         <input name="dosage_form" maxlength="200" required placeholder="Например: таблетки, покрытые оболочкой"></label>
       <label class="form-field">Дозировка указанного препарата
