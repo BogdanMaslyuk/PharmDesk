@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Загрузка выгрузки ГРЛС{% endblock %}
+{% block breadcrumb %}<a href="/catalog">Справочник</a> / Загрузка ГРЛС{% endblock %}
+{% block content %}
+<a class="backlink" href="/catalog/grls">← К импортированным выгрузкам</a>
+<div class="section-header"><div>
+  <div class="eyebrow">ГОСУДАРСТВЕННЫЙ РЕЕСТР · ПАКЕТНАЯ ЗАГРУЗКА</div>
+  <h1>Загрузка официальной выгрузки</h1>
+  <p>Импорт ZIP с книгами XLSX ГРЛС. Сначала проверьте предварительный просмотр, затем явно подтвердите сохранение.</p>
+</div></div>
+<div class="notice">
+  <strong>Внимание: источник файла не проверяется автоматически.</strong>
+  Архив должен быть получен вами на официальном сайте
+  <a target="_blank" rel="noopener noreferrer" href="https://grls.minzdrav.gov.ru/grls.aspx">ГРЛС Минздрава России ↗</a>.
+  PharmDesk читает данные из файла, а не подключается к реестру через сеть.
+  Поддельный, изменённый или устаревший архив приведёт к неверным сведениям.
+  Ввозимые данные <b>не изменяют ассортимент</b>, ручной справочник и подтверждённые связи.
+</div>
+{% if error %}<div class="form-error" role="alert">{{error}}</div>{% endif %}
+{% if not preview %}
+<div class="details-grid">
+  <section class="panel">
+    <div class="panel-head"><h2>1. Выберите файл выгрузки</h2></div>
+    <div class="panel-body">
+      <form method="post" action="/catalog/grls/preview" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+        <label class="form-field">ZIP-архив ГРЛС (не более 96 МБ)
+          <input type="file" name="file" accept=".zip" required></label>
+        <label class="review-check">
+          <input type="checkbox" name="claimed_official" value="yes" required>
+          Я самостоятельно скачал исходный архив с официального сайта и проверил его дату.
+        </label>
+        <button class="btn btn-primary" type="submit">Проверить и показать предварительный просмотр</button>
+      </form>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>Что проверяет программа</h2></div>
+    <div class="panel-body">
+      <p>Структуру ZIP/XLSX, даты и статусы, обязательные поля, ограничения размеров и контрольную сумму SHA-256.</p>
+      <p><strong>Не проверяет:</strong> электронную подпись источника, актуальный статус регистрации, корректность содержимого или право на повторное распространение выгрузки.</p>
+      <p>Если формат файла не соответствует документированной структуре, операция прерывается без сохранения данных.</p>
+      <a class="text-link" target="_blank" rel="noopener noreferrer" href="https://minzdrav.gov.ru/special/documents/9892-opisanie-tehnicheskih-trebovaniy-k-vzaimodeystviyu-informatsionnoy-sistemy-posrednicheskoy-tsifrovoy-platformy-s-gosudarstvennoy-informatsionnoy-sistemoy-reestrom">Документ Минздрава о структуре выгрузки ↗</a>
+    </div>
+  </section>
+</div>
+{% else %}
+<section class="panel">
+  <div class="panel-head"><h2>2. Предварительный просмотр — без изменений базы</h2><span class="review-chip warn">Не импортировано</span></div>
+  <div class="panel-body">
+    <div class="stat-grid">
+      <div class="stat"><div class="stat-title">Строк в архиве</div><div class="stat-value">{{preview.count}}</div></div>
+      <div class="stat"><div class="stat-title">Дата выгрузки</div><div class="stat-value grls-date">{{preview.snapshot_on.strftime('%d.%m.%Y')}}</div></div>
+      <div class="stat"><div class="stat-title">Книг Excel</div><div class="stat-value">{{preview.source_files|length}}</div></div>
+    </div>
+    {% if preview.old %}
+      <div class="form-error"><strong>Устаревшая выгрузка.</strong> Её дата более 30 дней назад. Нельзя использовать её статусы как подтверждение текущей регистрации.</div>
+    {% endif %}
+    <p><b>Файл:</b> {{preview.original_filename}}</p>
+    <p><b>Контрольная сумма SHA-256:</b> <code>{{preview.sha256}}</code></p>
+    <div class="grls-status-grid">
+      {% for row in status_rows %}
+      <div class="grls-status"><span>{{row.name}}</span><b>{{row.count}}</b></div>
+      {% endfor %}
+    </div>
+    <h3>Первые 15 строк</h3>
+  </div>
+  <div class="table-wrap"><table><thead><tr>
+    <th>Регистрационный номер</th><th>Торговое название</th><th>МНН (исходное поле)</th><th>Формы выпуска (как в файле)</th><th>Статус из имени книги</th>
+  </tr></thead><tbody>
+  {% for item in preview.sample %}
+  <tr><td class="code">{{item.registration_number}}</td><td>{{item.trade_name}}</td>
+      <td>{{item.inn_raw or "Не указано"}}</td><td>{{item.release_forms_raw}}</td>
+      <td><span class="review-chip warn">{{item.status_from_filename}}</span></td></tr>
+  {% endfor %}
+  </tbody></table></div>
+  <div class="panel-body">
+    <div class="notice">Проверьте количество записей и дату. Поле «Формы выпуска» сохранится как исходный текст, PharmDesk не будет угадывать из него дозировку и лекарственную форму автоматически.</div>
+    <form method="post" action="/catalog/grls/confirm" class="grls-confirm">
+      <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+      <input type="hidden" name="digest" value="{{preview.sha256}}">
+      <input type="hidden" name="original_filename" value="{{preview.original_filename}}">
+      <label class="form-field">Для сохранения в отдельном справочнике введите ИМПОРТИРОВАТЬ
+        <input name="typed_confirmation" autocomplete="off" placeholder="ИМПОРТИРОВАТЬ" required></label>
+      <button class="btn btn-primary" type="submit">Импортировать только исходные реестровые записи</button>
+      <a class="btn btn-white" href="/catalog/grls/import">Отмена</a>
+    </form>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
