@@ -165,13 +165,13 @@ def add_registry_entry(
                 "Подтвердите проверку источника и сопоставление с конкретным товаром."
             )
         _require_explanation(medicine.name, trade, strength, note)
-        _ensure_no_conflicting_active_link(db, medicine.id)
         key = registry_identity_key(reg, trade, form, strength, maker)
         current = db.scalar(select(RegisteredProduct).where(RegisteredProduct.identity_key == key))
         if current is not None:
             raise CatalogValidationError(
                 "Такая регистрационная карточка уже внесена. Используйте связывание с существующей записью."
             )
+        _ensure_no_conflicting_active_link(db, medicine.id)
 
         entry = RegisteredProduct(
             identity_key=key, registration_number=reg, trade_name=trade,
