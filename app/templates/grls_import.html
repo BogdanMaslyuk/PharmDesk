@@ -67,6 +67,9 @@
     {% if preview.old %}
       <div class="form-error"><strong>Устаревшая выгрузка.</strong> Её дата более 30 дней назад. Нельзя использовать её статусы как подтверждение текущей регистрации.</div>
     {% endif %}
+    {% if preview.automatic_download %}
+      <div class="notice"><strong>Получено через HTTPS с официального сайта.</strong> Проверьте дату и категории документа перед сохранением. Это не подтверждение актуального статуса регистрации.</div>
+    {% endif %}
     <p><b>Файл:</b> {{preview.original_filename}}</p>
     <p><b>Контрольная сумма SHA-256:</b> <code>{{preview.sha256}}</code></p>
     <div class="grls-status-grid">
