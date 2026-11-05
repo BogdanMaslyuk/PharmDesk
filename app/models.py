@@ -231,3 +231,35 @@ class RegistryLinkEvent(Base):
     explanation: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     link: Mapped[MedicineRegistrationLink] = relationship(back_populates="history")
+
+
+class GrlsImportBatch(Base):
+    """Local user-supplied GRLS export; authenticity is NOT authenticated."""
+    __tablename__ = "grls_import_batches"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sha256: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    archive_name: Mapped[str] = mapped_column(String(180))
+    snapshot_on: Mapped[date] = mapped_column(Date, index=True)
+    source_url: Mapped[str] = mapped_column(String(400), default="https://grls.minzdrav.gov.ru/grls.aspx")
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    row_count: Mapped[int] = mapped_column(Integer)
+    origin_statement: Mapped[str] = mapped_column(String(120), default="user_supplied_unverified")
+    rows: Mapped[list["GrlsImportRow"]] = relationship(back_populates="batch")
+
+
+class GrlsImportRow(Base):
+    """Raw GRLS export fields; no automatic therapeutic or registration claims."""
+    __tablename__ = "grls_import_rows"
+    __table_args__ = (UniqueConstraint("batch_id", "source_workbook", "source_row", name="uq_grls_batch_file_row"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("grls_import_batches.id"), index=True)
+    source_workbook: Mapped[str] = mapped_column(String(210))
+    source_row: Mapped[int] = mapped_column(Integer)
+    status_from_filename: Mapped[str] = mapped_column(String(150), index=True)
+    registration_number: Mapped[str] = mapped_column(String(140), index=True)
+    trade_name: Mapped[str] = mapped_column(String(350), index=True)
+    inn_raw: Mapped[str] = mapped_column(Text, default="")
+    release_forms_raw: Mapped[str] = mapped_column(Text, default="")
+    certificate_holder: Mapped[str] = mapped_column(String(600), default="")
+    batch: Mapped[GrlsImportBatch] = relationship(back_populates="rows")
+
