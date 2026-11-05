@@ -76,3 +76,11 @@ h1,h2,p{margin-top:0}h1{font-size:32px;line-height:1.2;letter-spacing:-.8px;marg
 .review-image-container[data-review-viewport]{overflow:auto;max-height:740px;overscroll-behavior:contain;text-align:left}
 .review-image-container[data-review-viewport] img{display:block;max-width:none;margin:0;border-radius:7px}
 @media(max-width:760px){.review-progress-summary{gap:8px}.review-photo-tools{flex-wrap:wrap}.review-progress-summary .review-progress-hint{margin-left:0}}
+
+/* v0.3.2 read-only quality report and approximate search */
+.quality-approx-notice{border-left:3px solid #b9873c;margin:14px 0}
+.quality-reasons{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:10px;padding:16px 18px}
+.quality-reason{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;background:#f6f9ff;border:1px solid #e2eaf4;border-radius:10px;font-size:12px}
+.quality-reason b{font-size:16px;color:#215caa}.quality-reason.active,.quality-reason:hover{border-color:#80a9e6;background:#eaf2ff}
+.search-result.approximate{background:#fff9ed}
+.search-result.approximate:hover{background:#fff0cf}
