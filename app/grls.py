@@ -16,6 +16,7 @@ from starlette.requests import Request
 
 from .database import ROOT, get_db
 from .grls_import import MAX_ZIP_BYTES, GrlsImportError, parse_grls_archive, store_grls_batch
+from .grls_fetch import fetch_official_grls
 from .manage import _check_csrf, _csrf
 from .models import GrlsImportBatch, GrlsImportRow, Medicine
 from .search import normalize
@@ -40,9 +41,40 @@ def _loading_page(request, error=None, preview=None):
     return _page(request, "grls_import.html", error=error, preview=preview, status_rows=batches)
 
 
+def _prepare_preview(db, raw, filename):
+    """Shared two-step staging for direct official download and manual ZIP upload."""
+    parsed = parse_grls_archive(raw)
+    if db.scalar(select(GrlsImportBatch.id).where(GrlsImportBatch.sha256 == parsed["sha256"])):
+        raise GrlsImportError("Этот архив уже импортирован. Повторное добавление запрещено.")
+    PREVIEW_FOLDER.mkdir(parents=True, exist_ok=True)
+    temporary = PREVIEW_FOLDER / (parsed["sha256"] + ".zip")
+    # File is named solely after SHA-256; never trust the source filename as a path.
+    temporary.write_bytes(raw)
+    public = {key: value for key, value in parsed.items() if key != "rows"}
+    public["original_filename"] = Path((filename or "grls.zip").replace("\\", "/")).name[:180]
+    public["old"] = (date.today() - parsed["snapshot_on"]).days > 30
+    return public
+
+
 @router.get("/catalog/grls/import", response_class=HTMLResponse)
 def grls_upload(request: Request):
     return _loading_page(request)
+
+
+@router.post("/catalog/grls/fetch", response_class=HTMLResponse)
+def grls_fetch(request: Request, csrf_token: str = Form(...), db: Session = Depends(get_db)):
+    """Attempt direct official download and preview; no permanent writes yet."""
+    _check_csrf(request, csrf_token)
+    try:
+        raw, source = fetch_official_grls()
+        preview = _prepare_preview(db, raw, "GRLS_official_download.zip")
+        preview["automatic_download"] = True
+        return _loading_page(request, preview=preview)
+    except (GrlsImportError, OSError) as exc:
+        return _loading_page(request, error=str(exc))
+
+
+
 
 
 @router.post("/catalog/grls/preview", response_class=HTMLResponse)
@@ -58,20 +90,9 @@ async def grls_preview(
         if not (file.filename or "").casefold().endswith(".zip"):
             raise GrlsImportError("Требуется оригинальная ZIP-выгрузка ГРЛС.")
         raw = await file.read(MAX_ZIP_BYTES + 1)
-        parsed = parse_grls_archive(raw)
-        if db.scalar(select(GrlsImportBatch.id).where(GrlsImportBatch.sha256 == parsed["sha256"])):
-            raise GrlsImportError("Этот архив уже импортирован. Повторное добавление запрещено.")
-        PREVIEW_FOLDER.mkdir(parents=True, exist_ok=True)
-        temporary = PREVIEW_FOLDER / (parsed["sha256"] + ".zip")
-        # Digest-named file cannot escape the private local directory.
-        if not temporary.exists():
-            temporary.write_bytes(raw)
-        public = {
-            key: value for key, value in parsed.items() if key != "rows"
-        }
-        public["original_filename"] = Path((file.filename or "grls.zip").replace("\\", "/")).name[:180]
-        public["old"] = (date.today() - parsed["snapshot_on"]).days > 30
-        return _loading_page(request, preview=public)
+        return _loading_page(
+            request, preview=_prepare_preview(db, raw, file.filename or "grls.zip")
+        )
     except (GrlsImportError, OSError) as exc:
         return _loading_page(request, error=str(exc))
     finally:
