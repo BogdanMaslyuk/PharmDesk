@@ -205,6 +205,13 @@ def test_existing_link_attach_revoke_and_reactivate(environment):
     db.refresh(link)
     assert link.state == "active"
     assert db.scalar(select(func.count(MedicineRegistrationLink.id))) == 2
+    from app.models import RegistryLinkEvent
+    events = db.scalars(select(RegistryLinkEvent).where(RegistryLinkEvent.link_id == link.id)
+                        .order_by(RegistryLinkEvent.id)).all()
+    assert [e.action for e in events] == ["linked", "revoked", "relinked"]
+    assert events[1].explanation == "Пользователь нашёл другое соответствие"
+    history_page = client.get(f"/medicines/{second.id}/registry")
+    assert "История сопоставления (3)" in history_page.text
 
 
 def test_source_validation_and_identity_keys():
@@ -230,6 +237,7 @@ def test_new_tables_additive_for_existing_stock(tmp_path):
         if table.name not in {
             "registered_products", "registered_substances",
             "registered_compositions", "medicine_registration_links",
+            "registry_link_events",
         }
     }
     with engine.begin() as conn:
