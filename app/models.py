@@ -162,3 +162,58 @@ class SubstanceEvidence(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     review_status: Mapped[str] = mapped_column(String(24), default="manual")
     checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class RegisteredProduct(Base):
+    """A *manually transcribed* registry record; never an automatically verified license."""
+    __tablename__ = "registered_products"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    identity_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    registration_number: Mapped[str] = mapped_column(String(120), index=True)
+    trade_name: Mapped[str] = mapped_column(String(250), index=True)
+    dosage_form: Mapped[str] = mapped_column(String(200))
+    strength_text: Mapped[str] = mapped_column(String(200))
+    manufacturer: Mapped[str] = mapped_column(String(300), default="")
+    source_title: Mapped[str] = mapped_column(String(200))
+    source_url: Mapped[str] = mapped_column(String(800))
+    checked_on: Mapped[date] = mapped_column(Date)
+    entered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    # Manual transcription is not a live verification of authorization status.
+    verification_method: Mapped[str] = mapped_column(String(40), default="manual_reference_check")
+    substances: Mapped[list["RegisteredComposition"]] = relationship(back_populates="product")
+    links: Mapped[list["MedicineRegistrationLink"]] = relationship(back_populates="product")
+
+
+class RegisteredSubstance(Base):
+    """Standardized name transcribed from the same stated registry source."""
+    __tablename__ = "registered_substances"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    name_key: Mapped[str] = mapped_column(String(220), unique=True, index=True)
+    compositions: Mapped[list["RegisteredComposition"]] = relationship(back_populates="substance")
+
+
+class RegisteredComposition(Base):
+    __tablename__ = "registered_compositions"
+    __table_args__ = (UniqueConstraint("registered_product_id", "substance_id", name="uq_registered_composition"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    registered_product_id: Mapped[int] = mapped_column(ForeignKey("registered_products.id"), index=True)
+    substance_id: Mapped[int] = mapped_column(ForeignKey("registered_substances.id"), index=True)
+    product: Mapped[RegisteredProduct] = relationship(back_populates="substances")
+    substance: Mapped[RegisteredSubstance] = relationship(back_populates="compositions")
+
+
+class MedicineRegistrationLink(Base):
+    """Explicit, revocable human mapping: pharmacy item -> specific registered product."""
+    __tablename__ = "medicine_registration_links"
+    __table_args__ = (UniqueConstraint("medicine_id", "registered_product_id", name="uq_manual_medicine_registry_link"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    medicine_id: Mapped[int] = mapped_column(ForeignKey("medicines.id"), index=True)
+    registered_product_id: Mapped[int] = mapped_column(ForeignKey("registered_products.id"), index=True)
+    state: Mapped[str] = mapped_column(String(20), default="active", index=True)
+    comparison_note: Mapped[str] = mapped_column(Text, default="")
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoke_reason: Mapped[str] = mapped_column(Text, default="")
+    medicine: Mapped[Medicine] = relationship()
+    product: Mapped[RegisteredProduct] = relationship(back_populates="links")
