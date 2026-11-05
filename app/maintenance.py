@@ -68,6 +68,7 @@ def diagnose(*, root=None, db_file=None):
         "review_pending": 0, "review_approved": 0,
         "review_excluded": 0, "review_priority": 0,
         "photos": 0, "missing_photos": 0, "warnings": [],
+        "grls_batches": 0, "grls_rows": 0, "registered_products": 0,
     }
     if not db_file.is_file():
         result["warnings"].append("Файл базы данных не найден. Диагностика ничего не создала.")
@@ -93,6 +94,9 @@ def diagnose(*, root=None, db_file=None):
 
             result["drawers"] = count("drawers")
             result["stock_items"] = count("stock_items")
+            result["grls_batches"] = count("grls_import_batches")
+            result["grls_rows"] = count("grls_import_rows")
+            result["registered_products"] = count("registered_products")
             result["review_pending"] = count("review_records", "state='pending'")
             result["review_approved"] = count("review_records", "state='approved'")
             result["review_excluded"] = count("review_records", "state='excluded'")
@@ -211,6 +215,9 @@ def main(argv=None):
         print("Целостность:", result["integrity"])
         print("Ящиков:", result["drawers"])
         print("Товарных записей:", result["stock_items"])
+        print("Снимков ГРЛС:", result["grls_batches"])
+        print("Исходных строк ГРЛС:", result["grls_rows"])
+        print("Карточек, внесённых вручную:", result["registered_products"])
         print("Ожидают сверки:", result["review_pending"])
         print("Сомнительных ожидающих:", result["review_priority"])
         print("Подтверждено:", result["review_approved"])
