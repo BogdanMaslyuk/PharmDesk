@@ -1,0 +1,20 @@
+name: Check public GRLS connectivity
+on:
+  push:
+    branches: [experiment/grls-official-fetch]
+    paths:
+      - 'scripts/grls_source_probe.py'
+      - '.github/workflows/grls-source-probe.yml'
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe official sources without saving content
+        run: python scripts/grls_source_probe.py
