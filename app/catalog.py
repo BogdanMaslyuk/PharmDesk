@@ -51,6 +51,20 @@ def _medicine(db, medicine_id):
     return medicine
 
 
+def _ensure_no_conflicting_active_link(db, medicine_id, intended_product_id=None):
+    active = db.scalar(
+        select(MedicineRegistrationLink).where(
+            MedicineRegistrationLink.medicine_id == medicine_id,
+            MedicineRegistrationLink.state == "active",
+        )
+    )
+    if active is not None and active.registered_product_id != intended_product_id:
+        raise CatalogValidationError(
+            "С этим товаром уже связана другая действующая регистрационная карточка. "
+            "Сначала проверьте и отмените прежнюю связь, затем подтвердите новую."
+        )
+
+
 def _record_statement():
     return select(RegisteredProduct).options(
         selectinload(RegisteredProduct.substances).selectinload(RegisteredComposition.substance)
@@ -151,6 +165,7 @@ def add_registry_entry(
                 "Подтвердите проверку источника и сопоставление с конкретным товаром."
             )
         _require_explanation(medicine.name, trade, strength, note)
+        _ensure_no_conflicting_active_link(db, medicine.id)
         key = registry_identity_key(reg, trade, form, strength, maker)
         current = db.scalar(select(RegisteredProduct).where(RegisteredProduct.identity_key == key))
         if current is not None:
@@ -213,6 +228,7 @@ def attach_existing(
         if entry is None:
             raise CatalogValidationError("Регистрационная карточка не найдена.")
         _require_explanation(medicine.name, entry.trade_name, entry.strength_text, note)
+        _ensure_no_conflicting_active_link(db, medicine.id, entry.id)
         existing = db.scalar(select(MedicineRegistrationLink).where(
             MedicineRegistrationLink.medicine_id == medicine.id,
             MedicineRegistrationLink.registered_product_id == entry.id
