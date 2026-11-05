@@ -111,3 +111,18 @@ h1,h2,p{margin-top:0}h1{font-size:32px;line-height:1.2;letter-spacing:-.8px;marg
 .grls-confirm{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px}
 .grls-confirm .form-field{flex:1;min-width:220px}
 @media(max-width:720px){.grls-confirm{flex-direction:column;align-items:stretch}}
+
+/* v0.4.3: show imported sources in the main reference catalog without implying verification */
+.catalog-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 16px}
+.catalog-tab{display:flex;align-items:center;gap:10px;padding:12px 15px;border:1px solid #d5e2f2;border-radius:10px;background:#fff;font-size:13px;font-weight:700;color:#2a466a}
+.catalog-tab.active{border-color:var(--blue);background:#edf4ff;color:#174eac}
+.catalog-tab:hover{border-color:#91b7ea}
+.catalog-tab-count{font-size:12px;padding:2px 7px;border-radius:100px;background:#e3eaf4;color:#264c7b}
+.catalog-source-warning{border-left:3px solid #d38c30}
+.catalog-search-filters{margin:12px 0 16px}
+.catalog-search-filters label:first-child{flex:2;min-width:240px}
+.catalog-forms-preview{white-space:normal;max-width:350px;max-height:90px;overflow:hidden;word-break:break-word;font-size:12px;line-height:1.5}
+.catalog-home-panel{margin-bottom:20px}
+.catalog-home-summary{display:flex;flex-wrap:wrap;gap:36px;margin-bottom:10px}
+.catalog-home-summary>div{min-width:180px;flex:1}
+.catalog-home-number{display:block;font-size:30px;font-weight:800;line-height:1.2;margin:5px 0;color:#215b99}
