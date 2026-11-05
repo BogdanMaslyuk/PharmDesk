@@ -162,5 +162,8 @@ app.include_router(review_router)
 from .identity import router as identity_router  # noqa: E402
 app.include_router(identity_router)
 
+from .catalog import router as catalog_router  # noqa: E402
+app.include_router(catalog_router)
+
 from .quality import router as quality_router  # noqa: E402
 app.include_router(quality_router)
