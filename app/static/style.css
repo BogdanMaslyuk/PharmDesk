@@ -97,3 +97,7 @@ h1,h2,p{margin-top:0}h1{font-size:32px;line-height:1.2;letter-spacing:-.8px;marg
 .catalog-revoke .form-field input{max-width:210px}
 .catalog-revoke .btn{max-width:210px}
 @media(max-width:760px){.catalog-linked-record{flex-wrap:wrap}.catalog-revoke{min-width:100%;max-width:100%}}
+
+.catalog-history{margin-top:7px;font-size:12px;color:#596f85}
+.catalog-history summary{cursor:pointer;font-weight:600}
+.catalog-event{display:flex;flex-direction:column;gap:3px;margin:8px 0 0 5px;padding:7px 10px;border-left:2px solid #d8e4f3;background:#f7f9fc;border-radius:0 7px 7px 0}
