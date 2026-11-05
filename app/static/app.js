@@ -59,14 +59,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!found.length) return;
         for (const item of found) {
           const a = document.createElement('a');
-          a.className = 'search-result';
+          a.className = 'search-result' + (item.approximate === true ? ' approximate' : '');
           const id = Number(item.id);
           if (!Number.isSafeInteger(id) || id <= 0) continue;
           a.href = '/medicines/' + id;
           const name = document.createElement('strong');
           name.textContent = String(item.name);
           const detail = document.createElement('small');
-          detail.textContent = 'Код ' + String(item.code) + ' · Ящик №' + String(item.drawer);
+          detail.textContent = (item.approximate === true ? 'Приблизительное совпадение · ' : '') + 'Код ' + String(item.code) + ' · Ящик №' + String(item.drawer);
           a.append(name, detail);
           suggestions.append(a);
         }
