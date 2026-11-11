@@ -219,12 +219,13 @@ def test_export_csv_excel_and_formula_safety(env):
     body = csv_result.content.decode("utf-8-sig")
     assert "Валз" in body and "ГРЛС" not in csv_result.headers.get("content-disposition","")
     data = list(csv.reader(body.splitlines(), delimiter=";"))
-    assert len(data) == 5
+    assert len(data) == 6
     xlsx_result = client.get(f"/manage/matching/{run.id}/export.xlsx")
     assert xlsx_result.status_code == 200
     book = load_workbook(BytesIO(xlsx_result.content), read_only=True)
-    assert book.active.max_row == 5
+    assert book.active.max_row == 6
     assert book.active["C2"].value
+    assert book.active["F1"].value == "Приоритет кандидата"
     book.close()
     assert matching_routes._safe_cell("=SUM(1,2)").startswith("'")
     assert matching_routes._safe_cell("@HYPERLINK") == "'@HYPERLINK"
