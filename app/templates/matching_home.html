@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Массовая проверка по ГРЛС{% endblock %}
+{% block breadcrumb %}<a href="/manage">Управление</a> / Массовая проверка по ГРЛС{% endblock %}
+{% block content %}
+<a class="backlink" href="/manage">← К управлению</a>
+<div class="section-header"><div>
+  <div class="eyebrow">ПОИСК ПОДХОДЯЩИХ РЕГИСТРАЦИОННЫХ СВЕДЕНИЙ</div>
+  <h1>Массовая проверка препаратов по ГРЛС</h1>
+  <p>Поиск и сравнение всех товаров за один запуск с сохранением причин каждого результата.</p>
+</div></div>
+<div class="notice">
+  <strong>Это поиск кандидатов, а не подтверждение регистрации.</strong>
+  Совпадения торгового названия, формы и дозировки требуют проверки человеком.
+  МНН из реестра нельзя автоматически считать составом конкретной аптечной упаковки;
+  результаты не используются для замены препаратов или проверки взаимодействий.
+</div>
+<div class="stat-grid">
+  <div class="stat"><div class="stat-title">Товаров к проверке</div>
+    <div class="stat-value">{{stocks}}</div><div class="stat-desc">Отдельных товарных строк, включая повторяющиеся наименования</div></div>
+  <div class="stat"><div class="stat-title">Строк последнего снимка ГРЛС</div>
+    <div class="stat-value">{{"{:,}".format(batch.row_count).replace(',', ' ') if batch else 0}}</div>
+    <div class="stat-desc">{{batch.snapshot_on.strftime('%d.%m.%Y') if batch else 'Нет выгрузки'}}</div></div>
+  <div class="stat"><div class="stat-title">Версия алгоритма</div>
+    <div class="stat-value matching-version">{{algorithm}}</div>
+    <div class="stat-desc">Результаты прошлых запусков сохраняются</div></div>
+</div>
+<section class="panel">
+  <div class="panel-head"><div><h2>Запустить анализ всего ассортимента</h2>
+    <p>Анализ выполняется отдельно от страницы; ход обработки можно наблюдать.</p></div></div>
+  <div class="panel-body">
+    {% if batch and stocks %}
+    <form method="post" action="/manage/matching/start">
+      <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+      <input type="hidden" name="batch_id" value="{{batch.id}}">
+      <p><b>Выбранная выгрузка:</b> {{batch.snapshot_on.strftime('%d.%m.%Y')}} · {{batch.archive_name}}</p>
+      <label class="review-check"><input type="checkbox" name="force" value="yes">
+        Принудительно повторить обработку неизменённых данных (создать новую историю запуска)</label>
+      <div class="actions">
+        {% if active %}
+          <a class="btn btn-primary" href="/manage/matching/{{active.id}}">Продолжить текущий анализ №{{active.id}}</a>
+          <span class="muted">Новый запуск недоступен, пока предыдущий обрабатывается.</span>
+        {% else %}
+          <button class="btn btn-primary" type="submit">Запустить массовую проверку</button>
+        {% endif %}
+      </div>
+    </form>
+    {% else %}
+      <div class="form-error">
+        {% if not batch %}Нет сохранённой выгрузки ГРЛС. <a href="/catalog/grls/import">Загрузить реестр</a>.
+        {% else %}В базе нет товарных позиций. Сначала создайте ассортимент.{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-head"><h2>История проверок</h2></div>
+  <div class="table-wrap"><table>
+  <thead><tr><th>Запуск</th><th>Дата</th><th>Снимок ГРЛС</th><th>Обработано</th><th>Категории</th><th>Состояние</th><th></th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+    <tr>
+      <td>№{{r.id}}</td>
+      <td>{{r.started_at.strftime('%d.%m.%Y %H:%M')}}</td>
+      <td>{{r.batch.snapshot_on.strftime('%d.%m.%Y')}}</td>
+      <td>{{r.processed}} / {{r.total}}</td>
+      <td>Сильные: {{r.strong}} · неоднозначные: {{r.ambiguous}} · без кандидатов: {{r.not_found}}</td>
+      <td><span class="review-chip warn">{{r.state}}</span></td>
+      <td><a class="text-link" href="/manage/matching/{{r.id}}">Открыть ↗</a></td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="empty-cell">Массовая проверка ещё не запускалась.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<div class="notice">
+  В PharmDesk используется выбранная загруженная выгрузка: программа не скачивает новые сведения без отдельного действия пользователя.
+  Сохранение результатов проверки не изменяет товары, ящики, исходные строки ГРЛС или подтверждённые связи.
+</div>
+{% endblock %}
