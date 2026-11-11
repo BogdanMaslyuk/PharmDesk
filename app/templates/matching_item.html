@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Сопоставление товара №{{item.article_code}}{% endblock %}
+{% block breadcrumb %}<a href="/manage/matching">Массовая проверка</a> / <a href="/manage/matching/{{run.id}}">Запуск №{{run.id}}</a> / Товар{% endblock %}
+{% block content %}
+<a class="backlink" href="/manage/matching/{{run.id}}">← К результатам проверки</a>
+<div class="section-header"><div>
+  <div class="eyebrow">ТОВАР №{{item.article_code}} · ЯЩИК №{{item.drawer_number}}</div>
+  <h1>{{item.stock_name}}</h1>
+  <p>{{item.stock_manufacturer or 'Производитель не указан'}} · исходная запись сохранена без изменений</p>
+</div>
+{% if item.category == "strong" %}<span class="review-chip warn">Сильный кандидат · не подтверждён</span>
+{% elif item.category == "ambiguous" %}<span class="review-chip warn">Неоднозначно</span>
+{% else %}<span class="review-chip blocked">Нет кандидатов</span>{% endif %}</div>
+{% if stale %}
+<div class="form-error"><strong>Данные товара изменились после запуска проверки или товар удалён.</strong>
+  Исторические результаты сохранены, но их нельзя подтверждать как актуальные. Запустите анализ повторно.
+</div>
+{% endif %}
+{% if request.query_params.get('decision') %}<div class="notice">Решение записано в историю. Оно не меняет товар, состав или регистрационную связь.</div>{% endif %}
+<div class="notice">
+  <strong>Это результат вычислительного сопоставления, а не проверка регистрации.</strong>
+  Указанные в ГРЛС МНН и формы относятся к выбранному снимку {{run.batch.snapshot_on.strftime('%d.%m.%Y')}}.
+  Они не подтверждают состав именно этой аптечной упаковки.
+</div>
+<section class="panel">
+  <div class="panel-head"><h2>Признаки, выделенные из товарной строки</h2></div>
+  <dl class="detail-list">
+    <div><dt>Полное торговое название (предположение)</dt><dd>{{parsed.trade}}</dd></div>
+    <div><dt>Найденные лекарственные формы</dt><dd>{{parsed.forms|join(', ') if parsed.forms else 'Не определены'}}</dd></div>
+    <div><dt>Выделенные дозы</dt><dd>{% for value in parsed.doses %}{{value|join(' ')}}{% if not loop.last %} + {% endif %}{% else %}Не определены{% endfor %}
+      {% if parsed.dose_uncertain %}<span class="review-chip warn">Неполная запись</span>{% endif %}</dd></div>
+    <div><dt>Признаки упаковки</dt><dd>{{parsed.package or 'Не выделены'}}</dd></div>
+  </dl>
+  <div class="panel-body">
+    {% for reason in reasons %}<p class="matching-reason">• {{reason}}</p>{% endfor %}
+  </div>
+</section>
+<section class="panel table-panel">
+<div class="panel-head"><div><h2>Кандидаты ГРЛС</h2>
+<p>Найдено {{item.candidate_total}} записей по полному торговому названию, показано {{candidates|length}}.</p></div></div>
+{% for entry in candidates %}
+  <div class="matching-candidate">
+    <div class="matching-candidate-head">
+      <div><b>{{entry.source_row.trade_name}}</b>
+        <small class="muted">РУ: {{entry.source_row.registration_number}} · {{entry.source_row.status_from_filename}} по выгрузке {{run.batch.snapshot_on.strftime('%d.%m.%Y')}}</small></div>
+      <span class="review-chip warn">{{'Сильный кандидат · не проверен' if entry.category == 'strong' else 'Неоднозначно · проверить'}}</span>
+    </div>
+    <div class="matching-source">
+      <p><strong>МНН из выгрузки:</strong> {{entry.source_row.inn_raw or 'Не указано'}}</p>
+      <p><strong>Варианты выпуска из файла:</strong> {{entry.source_row.release_forms_raw|truncate(600, True) if entry.source_row.release_forms_raw else 'Не указаны'}}</p>
+      <p><strong>Происхождение:</strong> {{entry.source_row.source_workbook}}, строка {{entry.source_row.source_row}}</p>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Проверка</th><th>Значение товара</th><th>Значение ГРЛС</th><th>Результат</th></tr></thead>
+      <tbody>
+        {% for ev in entry.evidence|sort(attribute='id') %}
+        <tr><td>{{{'name':'Торговое название','form':'Лекарственная форма','dose':'Дозировка','release':'Высвобождение','package':'Упаковка','status':'Статус'}[ev.field] if ev.field in ['name','form','dose','release','package','status'] else ev.field}}</td>
+          <td>{{ev.stock_value or '—'}}</td><td>{{ev.registry_value or '—'}}</td>
+          <td><b>{{{'match':'Совпадает','conflict':'Расхождение','unknown':'Недостаточно данных','ambiguous':'Неоднозначно'}[ev.outcome] if ev.outcome in ['match','conflict','unknown','ambiguous'] else ev.outcome}}</b>
+            <small class="muted">{{ev.explanation}}</small></td></tr>
+        {% endfor %}
+      </tbody></table></div>
+    <div class="matching-actions">
+      <a class="btn btn-white" href="/catalog/grls/row/{{entry.source_row.id}}">Посмотреть исходную запись</a>
+      {% if not stale and run.state == 'done' %}
+        <a class="btn btn-primary" href="/medicines/{{item.medicine_id}}/registry?candidate_id={{entry.source_row.id}}">Перейти к ручному подтверждению</a>
+        <details class="matching-decision-form">
+          <summary>Отклонить или отложить кандидата</summary>
+          <form method="post" action="/manage/matching/{{run.id}}/item/{{item.id}}/decision">
+            <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+            <input type="hidden" name="candidate_id" value="{{entry.id}}">
+            <label class="form-field">Решение
+              <select name="action">
+                <option value="deferred">Отложить проверку</option>
+                <option value="rejected">Отклонить кандидата</option>
+              </select></label>
+            <label class="form-field">Причина (обязательна при отклонении)
+              <textarea name="comment" maxlength="1000" rows="2" placeholder="Например: другая лекарственная форма"></textarea></label>
+            <button type="submit" class="btn btn-white">Сохранить решение</button>
+          </form>
+        </details>
+      {% endif %}
+    </div>
+  </div>
+{% else %}
+  <div class="panel-body"><p>По полному торговому названию подходящих строк в выбранной выгрузке не найдено.</p>
+  <p><strong>Это не означает, что препарат не зарегистрирован.</strong>
+  Проверьте название, вид товара, исходную упаковку и дату источника.</p></div>
+{% endfor %}
+</section>
+{% if decisions %}
+<section class="panel">
+  <div class="panel-head"><h2>История решений</h2></div>
+  <div class="mini-list">
+    {% for d in decisions %}
+    <div class="mini-row"><div class="pill-icon">✓</div><div class="mini-copy">
+      <b>{{'Отклонено' if d.action=='rejected' else 'Отложено' if d.action=='deferred' else 'Подтверждено человеком'}}</b>
+      <small>{{d.created_at.strftime('%d.%m.%Y %H:%M')}} · {{d.comment or 'Без комментария'}}</small>
+      {% if d.candidate %}<small>Регистрационная запись №{{d.candidate.source_row.registration_number}}</small>{% endif %}
+    </div></div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
