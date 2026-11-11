@@ -172,7 +172,16 @@ def matching_results(
         select(MatchingItem.drawer_number).where(MatchingItem.run_id == run_id)
         .distinct().order_by(MatchingItem.drawer_number)
     ).all()
-    return _page(request, "matching_results.html", run=run, items=items,
+    confirmed = db.scalar(
+        select(func.count(func.distinct(MatchingDecision.item_id)))
+        .select_from(MatchingDecision)
+        .join(MatchingItem, MatchingItem.id == MatchingDecision.item_id)
+        .where(
+            MatchingItem.run_id == run_id,
+            MatchingDecision.action == "confirmed",
+        )
+    ) or 0
+    return _page(request, "matching_results.html", run=run, items=items, confirmed=confirmed,
                  count=count, pages=pages, page_number=page_number,
                  q=q, category=category, drawer=drawer_no, drawers=drawers)
 
@@ -246,7 +255,7 @@ def matching_decision(
 
 # Prevent formula execution when CSV/XLSX is opened in spreadsheet software.
 def _safe_cell(value):
-    text = str(value or "")
+    text = str(value if value is not None else "")
     if text.lstrip().startswith(("=", "+", "-", "@")) or text.startswith(("\t", "\r", "\n")):
         return "'" + text
     return text
@@ -256,34 +265,37 @@ def _report_rows(db, run_id):
     items = db.scalars(
         select(MatchingItem)
         .where(MatchingItem.run_id == run_id)
+        .options(
+            selectinload(MatchingItem.candidates)
+            .selectinload(MatchingCandidate.source_row)
+        )
         .order_by(MatchingItem.id)
     ).all()
     headers = [
-        "Код", "Ящик", "Товар", "Категория", "Кандидатов",
-        "Регистрационный номер", "Название ГРЛС", "МНН из выгрузки",
-        "Формы выпуска из выгрузки", "Статус на дату выгрузки",
-        "Причины и замечания",
+        "Код", "Ящик", "Товар", "Категория товара", "Кандидатов всего",
+        "Приоритет кандидата", "Регистрационный номер", "Торговое название ГРЛС",
+        "МНН из выгрузки", "Формы выпуска (исходный текст)", "Категория ГРЛС",
+        "Имя исходного файла", "Номер строки", "Причины",
     ]
     yield headers
     for item in items:
-        best = db.scalar(
-            select(MatchingCandidate)
-            .options(selectinload(MatchingCandidate.source_row))
-            .where(MatchingCandidate.item_id == item.id)
-            .order_by(MatchingCandidate.rank).limit(1)
-        )
-        source = best.source_row if best else None
-        yield [
-            item.article_code, item.drawer_number, item.stock_name,
-            {"strong": "Сильный кандидат (не подтверждён)",
-             "ambiguous": "Неоднозначно", "none": "Нет кандидатов"}.get(item.category, ""),
-            item.candidate_total, source.registration_number if source else "",
-            source.trade_name if source else "",
-            source.inn_raw if source else "",
-            source.release_forms_raw if source else "",
-            source.status_from_filename if source else "",
-            " / ".join(json.loads(item.reasons_json)),
-        ]
+        candidates = sorted(item.candidates, key=lambda x: (x.rank, x.id))
+        for candidate in (candidates if candidates else [None]):
+            source = candidate.source_row if candidate is not None else None
+            yield [
+                item.article_code, item.drawer_number, item.stock_name,
+                {"strong": "Сильный кандидат (не подтверждён)",
+                 "ambiguous": "Неоднозначно", "none": "Кандидаты не найдены"}.get(item.category, ""),
+                item.candidate_total, candidate.rank if candidate is not None else "",
+                source.registration_number if source else "",
+                source.trade_name if source else "",
+                source.inn_raw if source else "",
+                source.release_forms_raw if source else "",
+                source.status_from_filename if source else "",
+                source.source_workbook if source else "",
+                source.source_row if source else "",
+                " / ".join(json.loads(item.reasons_json)),
+            ]
 
 
 @router.get("/manage/matching/{run_id}/export.csv")
@@ -314,8 +326,9 @@ def export_matching_xlsx(run_id: int, db: Session = Depends(get_db)):
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
     for col, width in {"A": 14, "B": 12, "C": 42, "D": 32,
-                       "E": 14, "F": 22, "G": 30, "H": 30,
-                       "I": 65, "J": 28, "K": 65}.items():
+                       "E": 14, "F": 14, "G": 28, "H": 36,
+                       "I": 35, "J": 65, "K": 25, "L": 36,
+                       "M": 12, "N": 55}.items():
         ws.column_dimensions[col].width = width
     stream = BytesIO()
     wb.save(stream)
