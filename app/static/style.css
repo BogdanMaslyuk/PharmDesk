@@ -126,3 +126,21 @@ h1,h2,p{margin-top:0}h1{font-size:32px;line-height:1.2;letter-spacing:-.8px;marg
 .catalog-home-summary{display:flex;flex-wrap:wrap;gap:36px;margin-bottom:10px}
 .catalog-home-summary>div{min-width:180px;flex:1}
 .catalog-home-number{display:block;font-size:30px;font-weight:800;line-height:1.2;margin:5px 0;color:#215b99}
+
+/* PharmDesk v0.4.5: transparent matching evidence and background progress */
+.matching-version{font-size:16px!important;overflow-wrap:anywhere}
+.matching-progress-panel{margin:14px 0}
+.matching-progress-bar{width:100%;height:13px;background:#e2e9f4;overflow:hidden;border-radius:15px}
+.matching-progress-bar>div{height:100%;background:#2568e8;transition:width .2s}
+.matching-exports{margin:14px 0}
+.matching-candidate{margin:10px 14px 18px;padding:14px;border:1px solid #dae5f5;border-radius:12px;background:#fff}
+.matching-candidate-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.matching-candidate-head small{display:block;margin-top:4px}
+.matching-source{padding:9px 12px;margin:10px 0;background:#f4f7fc;border-radius:9px;overflow-wrap:anywhere;font-size:13px}
+.matching-source p{margin:4px 0}
+.matching-actions{display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px;padding-top:12px}
+.matching-decision-form{border:1px solid #d9e3f1;border-radius:8px;padding:8px 12px;max-width:340px}
+.matching-decision-form summary{cursor:pointer;font-size:13px}
+.matching-decision-form form{display:grid;gap:7px;margin-top:12px}
+.matching-reason{padding:0 10px;font-size:13px;color:#395475}
+@media(max-width:760px){.matching-candidate{margin:10px 0}.matching-candidate-head{display:block}}
