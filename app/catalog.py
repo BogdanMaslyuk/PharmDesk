@@ -21,7 +21,7 @@ from .catalog_sources import (
 from .database import get_db
 from .manage import _check_csrf, _csrf
 from .models import (
-    InventoryEvent, Medicine, MedicineRegistrationLink, RegisteredComposition,
+    InventoryEvent, Medicine, StockItem, MedicineRegistrationLink, RegisteredComposition,
     RegisteredProduct, RegisteredSubstance, RegistryLinkEvent, GrlsImportRow,
     GrlsImportBatch, MatchingCandidate, MatchingItem,
     MatchingRun, MatchingDecision,
