@@ -278,6 +278,7 @@ def test_explicit_manual_source_confirmation_creates_approval_history(env):
     response = client.post(f"/medicines/{stock.medicine_id}/registry", data={
         "csrf_token": csrf,
         "candidate_id": match.grls_row_id,
+        "matching_item_id": match.item_id,
         "registration_number": "ЛП-101",
         "trade_name": "Валз",
         "dosage_form": "таблетки",
