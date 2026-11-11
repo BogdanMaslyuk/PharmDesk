@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Результаты массовой проверки №{{run.id}}{% endblock %}
+{% block breadcrumb %}<a href="/manage/matching">Массовая проверка</a> / Запуск №{{run.id}}{% endblock %}
+{% block content %}
+<a class="backlink" href="/manage/matching">← Ко всем проверкам</a>
+<div class="section-header"><div>
+  <div class="eyebrow">ВЫЧИСЛИТЕЛЬНЫЕ КАНДИДАТЫ · НЕ ПОДТВЕРЖДЕНО</div>
+  <h1>Результаты проверки №{{run.id}}</h1>
+  <p>ГРЛС от {{run.batch.snapshot_on.strftime('%d.%m.%Y')}} · алгоритм {{run.algorithm_version}} · запуск {{run.started_at.strftime('%d.%m.%Y %H:%M')}}</p>
+</div><span class="review-chip warn">{{run.state}}</span></div>
+{% if request.query_params.get('reused') %}
+<div class="notice">Для того же ассортимента и снимка ГРЛС уже есть завершённый анализ. Показаны сохранённые результаты. Для нового запуска выберите принудительный повтор на странице управления.</div>
+{% endif %}
+{% if run.state in ['queued','running'] %}
+  <section class="panel matching-progress-panel">
+    <div class="panel-head"><h2>Анализ выполняется</h2><span class="counter">{{run.processed}} / {{run.total}}</span></div>
+    <div class="panel-body"><div class="matching-progress-bar"><div style="width:{{(100 * run.processed / run.total)|round if run.total else 0}}%"></div></div>
+      <p class="muted">Страница автоматически обновится после следующего этапа. Закрытие вкладки не прерывает серверную обработку.</p>
+    </div>
+  </section>
+  <script>setTimeout(function(){window.location.reload();},4000);</script>
+{% elif run.state in ['failed','stale'] %}
+  <div class="form-error"><strong>Проверка не завершена:</strong> {{run.error_text or 'Ошибка обработки.'}}.
+  История уже обработанных товаров сохранена; новый запуск начнётся отдельно и не перезапишет её.</div>
+{% endif %}
+<div class="stat-grid">
+  <div class="stat"><div class="stat-title">Обработано</div><div class="stat-value">{{run.processed}} / {{run.total}}</div></div>
+  <div class="stat"><div class="stat-title">Сильные кандидаты</div><div class="stat-value">{{run.strong}}</div><div class="stat-desc">Не подтверждены человеком</div></div>
+  <div class="stat"><div class="stat-title">Неоднозначные</div><div class="stat-value">{{run.ambiguous}}</div></div>
+  <div class="stat"><div class="stat-title">Без кандидатов</div><div class="stat-value">{{run.not_found}}</div></div>
+</div>
+<div class="notice"><strong>Важно:</strong> категория «Сильный кандидат» означает лишь согласование извлечённых признаков
+  в выбранном снимке, а не подтверждённый состав, действующий регистрационный статус или разрешённую замену.
+  При множественных строках одного названия результат считается неоднозначным.
+</div>
+{% if run.state == 'done' %}
+<div class="actions matching-exports">
+  <a class="btn btn-white" href="/manage/matching/{{run.id}}/export.csv">Экспорт CSV</a>
+  <a class="btn btn-white" href="/manage/matching/{{run.id}}/export.xlsx">Экспорт Excel</a>
+</div>
+{% endif %}
+<section class="panel">
+<div class="panel-head"><h2>Фильтры</h2></div>
+<div class="panel-body">
+<form action="/manage/matching/{{run.id}}" method="get" class="review-filters">
+  <label>Название или внутренний код
+    <input type="search" name="q" maxlength="100" value="{{q}}" placeholder="Акридерм ГК, 97439">
+  </label>
+  <label>Результат
+    <select name="category">
+      <option value="all">Все</option>
+      <option value="strong" {% if category=='strong' %}selected{% endif %}>Сильные кандидаты</option>
+      <option value="ambiguous" {% if category=='ambiguous' %}selected{% endif %}>Неоднозначные</option>
+      <option value="none" {% if category=='none' %}selected{% endif %}>Без кандидатов</option>
+    </select>
+  </label>
+  <label>Ящик
+    <select name="drawer">
+      <option value="">Все</option>
+      {% for no in drawers %}<option value="{{no}}" {% if drawer == no %}selected{% endif %}>№{{no}}</option>{% endfor %}
+    </select>
+  </label>
+  <button type="submit" class="btn btn-primary">Показать</button>
+</form>
+</div></section>
+<section class="panel table-panel">
+  <div class="panel-head"><h2>Товарные позиции</h2><span class="counter">Найдено: {{count}}</span></div>
+  <div class="table-wrap"><table>
+  <thead><tr><th>Код</th><th>Ящик</th><th>Товар</th><th>Категория</th><th>Кандидатов</th><th></th></tr></thead>
+  <tbody>
+  {% for i in items %}
+    <tr>
+      <td class="code">{{i.article_code}}</td><td>№{{i.drawer_number}}</td>
+      <td><a class="drug-name" href="/manage/matching/{{run.id}}/item/{{i.id}}">{{i.stock_name}}</a>
+      <small class="muted">{{i.stock_manufacturer or 'Производитель не указан'}}</small></td>
+      <td>
+        {% if i.category == 'strong' %}<span class="review-chip warn">Сильный кандидат · не подтверждён</span>
+        {% elif i.category == 'ambiguous' %}<span class="review-chip warn">Неоднозначно</span>
+        {% else %}<span class="review-chip blocked">Кандидаты не найдены</span>{% endif %}
+      </td>
+      <td>{{i.candidate_total}}</td>
+      <td><a class="text-link" href="/manage/matching/{{run.id}}/item/{{i.id}}">Проверить ↗</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="empty-cell">Товаров с такими фильтрами нет.</td></tr>
+  {% endfor %}
+  </tbody></table></div>
+  {% if pages > 1 %}
+  <div class="review-pages">
+    {% if page_number > 1 %}
+      <a class="btn btn-white" href="/manage/matching/{{run.id}}?q={{q|urlencode}}&category={{category}}{% if drawer %}&drawer={{drawer}}{% endif %}&page_number={{page_number-1}}">← Назад</a>
+    {% endif %}
+    <span>Страница {{page_number}} из {{pages}}</span>
+    {% if page_number < pages %}
+      <a class="btn btn-white" href="/manage/matching/{{run.id}}?q={{q|urlencode}}&category={{category}}{% if drawer %}&drawer={{drawer}}{% endif %}&page_number={{page_number+1}}">Вперёд →</a>
+    {% endif %}
+  </div>{% endif %}
+</section>
+{% endblock %}
