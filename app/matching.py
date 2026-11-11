@@ -76,11 +76,16 @@ def matching_home(request: Request, db: Session = Depends(get_db)):
     runs = db.scalars(
         select(MatchingRun).order_by(MatchingRun.id.desc()).limit(20)
     ).all()
-    batch = _last_batch(db)
+    batches = db.scalars(
+        select(GrlsImportBatch)
+        .order_by(GrlsImportBatch.snapshot_on.desc(), GrlsImportBatch.id.desc())
+        .limit(50)
+    ).all()
+    batch = batches[0] if batches else None
     stocks = db.scalar(select(func.count(StockItem.id))) or 0
     active = _run_state(db)
-    return _page(request, "matching_home.html", runs=runs, batch=batch,
-                 stocks=stocks, active=active, algorithm=ALGORITHM_VERSION)
+    return _page(request, "matching_home.html", runs=runs, batches=batches,
+                 batch=batch, stocks=stocks, active=active, algorithm=ALGORITHM_VERSION)
 
 
 @router.post("/manage/matching/start")
@@ -138,7 +143,7 @@ def matching_status(run_id: int, db: Session = Depends(get_db)):
 def matching_results(
     run_id: int, request: Request, q: str = Query("", max_length=100),
     category: str = Query("all", max_length=20),
-    drawer: int | None = Query(None, ge=1),
+    drawer: str = Query("", max_length=10),
     page_number: int = Query(1, ge=1), db: Session = Depends(get_db),
 ):
     run = _get_run(db, run_id)
@@ -147,8 +152,9 @@ def matching_results(
     stmt = select(MatchingItem).where(MatchingItem.run_id == run_id)
     if category != "all":
         stmt = stmt.where(MatchingItem.category == category)
-    if drawer is not None:
-        stmt = stmt.where(MatchingItem.drawer_number == drawer)
+    drawer_no = int(drawer) if drawer.isdecimal() and int(drawer) > 0 else None
+    if drawer_no is not None:
+        stmt = stmt.where(MatchingItem.drawer_number == drawer_no)
     if q.strip():
         # SQL search over a small local result set; never scan full GRLS.
         stmt = stmt.where(or_(
@@ -168,7 +174,7 @@ def matching_results(
     ).all()
     return _page(request, "matching_results.html", run=run, items=items,
                  count=count, pages=pages, page_number=page_number,
-                 q=q, category=category, drawer=drawer, drawers=drawers)
+                 q=q, category=category, drawer=drawer_no, drawers=drawers)
 
 
 @router.get("/manage/matching/{run_id}/item/{item_id}", response_class=HTMLResponse)
@@ -209,6 +215,13 @@ def matching_decision(
     if run.state != "done":
         raise HTTPException(409, "Завершите сопоставление до ручных решений.")
     item = _get_item(db, run_id, item_id)
+    actual = db.scalar(
+        select(StockItem).options(
+            selectinload(StockItem.medicine), selectinload(StockItem.drawer)
+        ).where(StockItem.id == item.stock_item_id)
+    )
+    if actual is None or stock_hash(actual) != item.stock_fingerprint:
+        raise HTTPException(409, "Товар изменился после анализа. Повторите проверку.")
     if action not in ("rejected", "deferred"):
         raise HTTPException(400, "Неизвестное решение. Для подтверждения нужна отдельная ручная сверка.")
     candidate = db.scalar(select(MatchingCandidate).where(
