@@ -20,6 +20,7 @@ from .grls_fetch import fetch_official_grls
 from .manage import _check_csrf, _csrf
 from .models import GrlsImportBatch, GrlsImportRow, Medicine
 from .search import normalize
+from .trade_candidates import source_candidates, trade_name_from_stock
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
@@ -191,21 +192,16 @@ def grls_matches(
     if medicine is None:
         raise HTTPException(404, "Товар не найден.")
     batch = _selected_batch(db, batch_id)
-    phrase = q.strip() or medicine.name.split()[0]
-    key = normalize(phrase)
-    rows = []
-    if batch and len(key) >= 4:
-        # Suggestions based on name fragments are explicitly NOT matches
-        # of dosage, registration status or pharmaceutical equivalence.
-        rows = db.scalars(
-            select(GrlsImportRow).where(
-                GrlsImportRow.batch_id == batch.id,
-                GrlsImportRow.trade_key.contains(key)
-            ).order_by(GrlsImportRow.trade_name, GrlsImportRow.id).limit(50)
-        ).all()
+    expected_trade = trade_name_from_stock(medicine.name)
+    phrase = q.strip() or expected_trade
+    rows = source_candidates(
+        db, batch.id if batch else None, medicine_name=medicine.name,
+        trade_name=phrase, limit=50,
+    )
     return _page(request, "grls_matches.html", medicine=medicine, batch=batch,
                  batches=db.scalars(select(GrlsImportBatch).order_by(GrlsImportBatch.id.desc())).all(),
-                 rows=rows, q=phrase)
+                 rows=rows, q=phrase, expected_trade=expected_trade,
+                 query_differs=normalize(phrase) != normalize(expected_trade))
 
 
 @router.get("/catalog/grls/row/{row_id}", response_class=HTMLResponse)
