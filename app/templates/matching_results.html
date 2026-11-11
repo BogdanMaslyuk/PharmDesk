@@ -19,7 +19,7 @@
     </div>
   </section>
   <script>setTimeout(function(){window.location.reload();},4000);</script>
-{% elif run.state in ['failed','stale'] %}
+{% elif run.state in ['failed','stale','interrupted'] %}
   <div class="form-error"><strong>Проверка не завершена:</strong> {{run.error_text or 'Ошибка обработки.'}}.
   История уже обработанных товаров сохранена; новый запуск начнётся отдельно и не перезапишет её.</div>
 {% endif %}
