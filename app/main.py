@@ -207,3 +207,6 @@ app.include_router(catalog_router)
 
 from .quality import router as quality_router  # noqa: E402
 app.include_router(quality_router)
+
+from .matching import router as matching_router  # noqa: E402
+app.include_router(matching_router)
