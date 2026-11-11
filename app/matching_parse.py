@@ -31,7 +31,7 @@ FORMS = tuple((name, re.compile(regex, re.I)) for name, regex in FORM_PATTERNS)
 # Decimal strengths with explicit units. "мл" alone is package volume, NOT dose.
 _DOSE_RE = re.compile(
     r"(?<![а-яa-z0-9])(\d+(?:[.,]\d+)?)\s*"
-    r"(мг\s*/\s*мл|мкг\s*/\s*мл|мг|мкг|мег|ме|ед|%|г)"
+    r"(мг\s*/\s*мл|мкг\s*/\s*мл|мг|мкг|мег|ме|ед|iu|%|г)"
     r"(?![а-яa-z])", re.I
 )
 _STANDALONE_PLUS = re.compile(
@@ -70,7 +70,7 @@ def extract_doses(raw):
             # Could be ingredient mass, package mass or both.
             ambiguous = True
             continue
-        if unit in {"ме", "ед"}:
+        if unit in {"ме", "ед", "iu"}:
             unit = "ме"
         try:
             decimal = Decimal(amount)
@@ -163,8 +163,16 @@ def evaluate(stock, source, *, exact_trade, source_status, total_same_name=1):
         "Модифицированное" if stock["modified_release"] else "Не указано",
         "Модифицированное" if source["modified_release"] else "Не указано",
         "Тип высвобождения нельзя автоматически считать одинаковым.")
-    add("package", "unknown", stock["package"], source["package"],
-        "Упаковка — дополнительный признак; по ней не подтверждается тождество препарата.")
+    stock_packs = {x.strip() for x in stock["package"].split(",") if x.strip()}
+    source_packs = {x.strip() for x in source["package"].split(",") if x.strip()}
+    pack_state = (
+        "unknown" if not stock_packs or not source_packs
+        else "match" if stock_packs <= source_packs
+        else "ambiguous" if stock_packs & source_packs
+        else "conflict"
+    )
+    add("package", pack_state, stock["package"], source["package"],
+        "Упаковка — дополнительный признак. Совпадение не подтверждает состав или взаимозаменяемость.")
     add("status", "unknown", "", source_status,
         "Категория относится только к дате выгрузки и не удостоверяет текущий статус.")
     # Even a strong candidate is unverified and must be manually reviewed.
