@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import os
 import secrets
+import socket
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -27,22 +28,28 @@ HERE = Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    # Local single-process launcher: unfinished background work does not
-    # survive server shutdown. Never silently leave a permanent "running"
-    # state that prevents all future analyses.
-    with SessionLocal() as db:
-        interrupted = db.scalars(select(MatchingRun).where(
-            MatchingRun.state.in_(("queued", "running"))
-        )).all()
-        for run in interrupted:
-            run.state = "interrupted"
-            run.finished_at = datetime.now(timezone.utc)
-            run.error_text = (
-                "Сервер был остановлен до завершения анализа. "
-                "Предыдущие промежуточные результаты сохранены; запустите новый анализ."
-            )
-        if interrupted:
-            db.commit()
+    # Restore abandoned tasks only if no other local server is listening.
+    # Otherwise a second attempted launch could interrupt the first process.
+    already_running = False
+    try:
+        with socket.create_connection(("127.0.0.1", 8000), timeout=0.3):
+            already_running = True
+    except OSError:
+        pass
+    if not already_running:
+        with SessionLocal() as db:
+            interrupted = db.scalars(select(MatchingRun).where(
+                MatchingRun.state.in_(("queued", "running"))
+            )).all()
+            for run in interrupted:
+                run.state = "interrupted"
+                run.finished_at = datetime.now(timezone.utc)
+                run.error_text = (
+                    "Сервер был остановлен до завершения анализа. "
+                    "Предыдущие промежуточные результаты сохранены; запустите новый анализ."
+                )
+            if interrupted:
+                db.commit()
     yield
 
 
