@@ -54,7 +54,7 @@
       <thead><tr><th>Проверка</th><th>Значение товара</th><th>Значение ГРЛС</th><th>Результат</th></tr></thead>
       <tbody>
         {% for ev in entry.evidence|sort(attribute='id') %}
-        <tr><td>{{{'name':'Торговое название','form':'Лекарственная форма','dose':'Дозировка','release':'Высвобождение','package':'Упаковка','status':'Статус'}[ev.field] if ev.field in ['name','form','dose','release','package','status'] else ev.field}}</td>
+        <tr><td>{{{'name':'Торговое название','form':'Лекарственная форма','dose':'Дозировка','release':'Высвобождение','package':'Упаковка','status':'Статус','holder':'Держатель РУ / производитель'}[ev.field] if ev.field in ['name','form','dose','release','package','status','holder'] else ev.field}}</td>
           <td>{{ev.stock_value or '—'}}</td><td>{{ev.registry_value or '—'}}</td>
           <td><b>{{{'match':'Совпадает','conflict':'Расхождение','unknown':'Недостаточно данных','ambiguous':'Неоднозначно'}[ev.outcome] if ev.outcome in ['match','conflict','unknown','ambiguous'] else ev.outcome}}</b>
             <small class="muted">{{ev.explanation}}</small></td></tr>
