@@ -63,7 +63,7 @@
     <div class="matching-actions">
       <a class="btn btn-white" href="/catalog/grls/row/{{entry.source_row.id}}">Посмотреть исходную запись</a>
       {% if not stale and run.state == 'done' %}
-        <a class="btn btn-primary" href="/medicines/{{item.medicine_id}}/registry?candidate_id={{entry.source_row.id}}">Перейти к ручному подтверждению</a>
+        <a class="btn btn-primary" href="/medicines/{{item.medicine_id}}/registry?candidate_id={{entry.source_row.id}}&matching_item_id={{item.id}}">Перейти к ручному подтверждению</a>
         <details class="matching-decision-form">
           <summary>Отклонить или отложить кандидата</summary>
           <form method="post" action="/manage/matching/{{run.id}}/item/{{item.id}}/decision">
