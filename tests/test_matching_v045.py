@@ -263,3 +263,79 @@ def test_running_job_blocks_concurrent_duplicate_launch(env):
     assert db.scalar(select(func.count(MatchingRun.id))) == 1
     status = client.get(f"/manage/matching/{run.id}/status").json()
     assert status["state"] == "running"
+
+
+def test_explicit_manual_source_confirmation_creates_approval_history(env):
+    client, db, batch, csrf = env
+    start(client, batch, csrf)
+    run = db.scalar(select(MatchingRun))
+    match = db.scalar(select(MatchingCandidate).join(MatchingItem).where(
+        MatchingItem.article_code == "VALZ"
+    ))
+    stock = db.scalar(select(StockItem).where(StockItem.article_code == "VALZ"))
+    assert match is not None
+    response = client.post(f"/medicines/{stock.medicine_id}/registry", data={
+        "csrf_token": csrf,
+        "candidate_id": match.grls_row_id,
+        "registration_number": "ЛП-101",
+        "trade_name": "Валз",
+        "dosage_form": "таблетки",
+        "strength_text": "160 мг",
+        "manufacturer": "Завод А",
+        "substances": "Валсартан",
+        "source_url": "https://grls.rosminzdrav.ru/Default.aspx?record=verified-example",
+        "comparison_note": "Сверено с конкретной записью регистрационного источника.",
+        "source_checked": "yes",
+        "product_checked": "yes",
+    }, follow_redirects=False)
+    assert response.status_code == 303
+    assert db.scalar(select(func.count(RegisteredProduct.id))) == 1
+    assert db.scalar(select(func.count(MedicineRegistrationLink.id))) == 1
+    decisions = db.scalars(select(MatchingDecision).where(
+        MatchingDecision.candidate_id == match.id
+    )).all()
+    assert len(decisions) == 1 and decisions[0].action == "confirmed"
+    assert "Человек отдельно сверил" in decisions[0].comment
+    # Original GRLS rows and pharmacy stock remain unchanged.
+    assert db.scalar(select(func.count(StockItem.id))) == 4
+    assert db.scalar(select(func.count(GrlsImportRow.id))) == 5
+
+
+def test_reject_stale_and_wrong_item_candidate_decisions(env):
+    client, db, batch, csrf = env
+    start(client, batch, csrf)
+    run = db.scalar(select(MatchingRun))
+    item = db.scalar(select(MatchingItem).where(MatchingItem.article_code == "VALZ"))
+    alien = db.scalar(select(MatchingCandidate).join(MatchingItem).where(
+        MatchingItem.article_code == "GK"
+    ))
+    response = client.post(f"/manage/matching/{run.id}/item/{item.id}/decision", data={
+        "csrf_token": csrf, "candidate_id": alien.id,
+        "action": "deferred", "comment": "",
+    }, follow_redirects=False)
+    assert response.status_code == 404
+    medicine = db.get(Medicine, item.medicine_id)
+    medicine.name = "Валз таб. 80 мг"
+    db.commit()
+    response = client.post(f"/manage/matching/{run.id}/item/{item.id}/decision", data={
+        "csrf_token": csrf,
+        "candidate_id": db.scalar(select(MatchingCandidate.id).where(
+            MatchingCandidate.item_id == item.id)),
+        "action": "deferred", "comment": "Нужна новая проверка",
+    }, follow_redirects=False)
+    assert response.status_code == 409
+    assert db.scalar(select(func.count(MatchingDecision.id))) == 0
+
+
+def test_empty_optional_drawer_and_paginated_filters_not_422(env):
+    client, db, batch, csrf = env
+    start(client, batch, csrf)
+    run = db.scalar(select(MatchingRun))
+    for q in [
+        {"drawer": "", "category": "all"},
+        {"drawer": "58", "category": "strong"},
+        {"drawer": "unknown", "category": "invalid"},
+        {"drawer": "999999", "category": "none"},
+    ]:
+        response = client.get(f"/manage/matching/{run.id}", params=q)
+        assert response.status_code == 200
