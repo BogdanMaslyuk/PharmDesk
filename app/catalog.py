@@ -26,6 +26,7 @@ from .models import (
     GrlsImportBatch,
 )
 from .search import matches, normalize
+from .trade_candidates import trade_name_key
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
@@ -37,8 +38,11 @@ def _require_explanation(medicine_name, trade_name, strength, note):
     An explanation does not certify identity; it creates an audit trail
     requiring the reviewer to justify such a manual link.
     """
-    name = normalize(medicine_name)
-    if (normalize(trade_name) not in name or normalize(strength) not in name) and len(note) < 20:
+    # A common family prefix is not a drug identity:
+    # Акридерм and Акридерм ГК must not silently compare as the same brand.
+    same_brand = trade_name_key(medicine_name) == normalize(trade_name)
+    dose_visible = normalize(strength) in normalize(medicine_name)
+    if (not same_brand or not dose_visible) and len(note) < 20:
         raise CatalogValidationError(
             "Название или дозировка не совпадают с товарной строкой. "
             "Укажите в примечании подробное обоснование сопоставления (не менее 20 символов)."
@@ -52,7 +56,7 @@ def _medicine(db, medicine_id):
     return medicine
 
 
-def _check_grls_candidate(db, candidate_id, reg, trade, form, strength, comment):
+def _check_grls_candidate(db, candidate_id, medicine_name, reg, trade, form, strength, comment):
     """Compare a human-confirmed card with its selected source-snapshot row.
 
     This is local textual validation ONLY, not a live official verification.
@@ -71,6 +75,12 @@ def _check_grls_candidate(db, candidate_id, reg, trade, form, strength, comment)
     if normalize(trade) != candidate.trade_key:
         raise CatalogValidationError(
             "Торговое название не совпадает с выбранной строкой выгрузки."
+        )
+    if trade_name_key(medicine_name) != candidate.trade_key:
+        raise CatalogValidationError(
+            "Полное торговое название аптечного товара не совпадает с выбранной строкой ГРЛС. "
+            "Препараты одной торговой линейки (например, Акридерм и Акридерм ГК) "
+            "нельзя связывать как идентичные. Уточните товарную запись по первоисточнику."
         )
     source_forms = normalize(candidate.release_forms_raw)
     form_seen = normalize(form) in source_forms
@@ -290,7 +300,7 @@ def add_registry_entry(
             raise CatalogValidationError(
                 "Подтвердите проверку источника и сопоставление с конкретным товаром."
             )
-        source_note = _check_grls_candidate(db, candidate_id, reg, trade, form, strength, note)
+        source_note = _check_grls_candidate(db, candidate_id, medicine.name, reg, trade, form, strength, note)
         _require_explanation(medicine.name, trade, strength, note)
         note = source_note
         key = registry_identity_key(reg, trade, form, strength, maker)

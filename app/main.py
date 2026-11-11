@@ -17,6 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .database import get_db, init_db
 from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition, GrlsImportBatch, GrlsImportRow
 from .search import search_stock, drawer_matches, normalize
+from .trade_candidates import source_candidates
 from .version import APP_VERSION
 
 HERE = Path(__file__).resolve().parent
@@ -139,19 +140,12 @@ def medicine_detail(medicine_id: int, request: Request, db: Session = Depends(ge
             GrlsImportBatch.snapshot_on.desc(), GrlsImportBatch.id.desc()
         ).limit(1)
     )
-    candidate_rows = []
-    word = medicine.name.split()[0] if medicine.name.split() else ""
-    root = normalize(word)
-    if registry_batch and len(root) >= 4 and not root.isdigit():
-        candidate_rows = db.scalars(
-            select(GrlsImportRow).where(
-                GrlsImportRow.batch_id == registry_batch.id,
-                GrlsImportRow.trade_key.startswith(root),
-            ).order_by(
-                case((GrlsImportRow.trade_key == root, 0), else_=1),
-                GrlsImportRow.trade_name, GrlsImportRow.id
-            ).limit(5)
-        ).all()
+    candidate_rows = (
+        source_candidates(
+            db, registry_batch.id, medicine_name=medicine.name, limit=5
+        )
+        if registry_batch else []
+    )
     return render(request, 'medicine.html', page='medicines', medicine=medicine,
                   verified=verified, related=related, registrations=registrations,
                   registry_batch=registry_batch, candidate_rows=candidate_rows)
