@@ -173,6 +173,8 @@ def evaluate(stock, source, *, exact_trade, source_status, total_same_name=1):
     )
     add("package", pack_state, stock["package"], source["package"],
         "Упаковка — дополнительный признак. Совпадение не подтверждает состав или взаимозаменяемость.")
+    add("holder", "unknown", stock.get("manufacturer",""), source.get("holder",""),
+        "Держатель регистрационного удостоверения не обязан быть изготовителем препарата.")
     add("status", "unknown", "", source_status,
         "Категория относится только к дате выгрузки и не удостоверяет текущий статус.")
     # Even a strong candidate is unverified and must be manually reviewed.
