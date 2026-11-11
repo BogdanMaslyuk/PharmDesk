@@ -60,7 +60,7 @@
 <section class="panel">
   <div class="panel-head"><h2>История проверок</h2></div>
   <div class="table-wrap"><table>
-  <thead><tr><th>Запуск</th><th>Дата</th><th>Снимок ГРЛС</th><th>Обработано</th><th>Категории</th><th>Состояние</th><th></th></tr></thead>
+  <thead><tr><th>Запуск</th><th>Дата</th><th>Снимок ГРЛС</th><th>Обработано</th><th>Длительность</th><th>Категории</th><th>Состояние</th><th></th></tr></thead>
   <tbody>
   {% for r in runs %}
     <tr>
@@ -68,11 +68,12 @@
       <td>{{r.started_at.strftime('%d.%m.%Y %H:%M')}}</td>
       <td>{{r.batch.snapshot_on.strftime('%d.%m.%Y')}}</td>
       <td>{{r.processed}} / {{r.total}}</td>
+      <td>{% if r.finished_at %}{{(r.finished_at-r.started_at).total_seconds()|round(1)}} с{% else %}—{% endif %}</td>
       <td>Сильные: {{r.strong}} · неоднозначные: {{r.ambiguous}} · без кандидатов: {{r.not_found}}</td>
       <td><span class="review-chip warn">{{r.state}}</span></td>
       <td><a class="text-link" href="/manage/matching/{{r.id}}">Открыть ↗</a></td>
     </tr>
-  {% else %}<tr><td colspan="7" class="empty-cell">Массовая проверка ещё не запускалась.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="8" class="empty-cell">Массовая проверка ещё не запускалась.</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 <div class="notice">
