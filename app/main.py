@@ -16,7 +16,7 @@ from starlette.requests import Request
 from starlette.middleware.sessions import SessionMiddleware
 
 from .database import get_db, init_db, SessionLocal
-from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition, GrlsImportBatch, GrlsImportRow, MatchingRun
+from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition, GrlsImportBatch, GrlsImportRow, MatchingRun, MatchingItem
 from .search import search_stock, drawer_matches, normalize
 from .trade_candidates import source_candidates
 from .version import APP_VERSION
@@ -163,9 +163,27 @@ def medicine_detail(medicine_id: int, request: Request, db: Session = Depends(ge
         )
         if registry_batch else []
     )
+    latest_matching = db.scalar(
+        select(MatchingRun)
+        .where(MatchingRun.state == "done")
+        .order_by(MatchingRun.id.desc()).limit(1)
+    )
+    matching_rows = (
+        db.scalars(
+            select(MatchingItem)
+            .where(
+                MatchingItem.run_id == latest_matching.id,
+                MatchingItem.medicine_id == medicine_id,
+            )
+            .order_by(MatchingItem.drawer_number, MatchingItem.article_code)
+            .limit(25)
+        ).all()
+        if latest_matching else []
+    )
     return render(request, 'medicine.html', page='medicines', medicine=medicine,
                   verified=verified, related=related, registrations=registrations,
-                  registry_batch=registry_batch, candidate_rows=candidate_rows)
+                  registry_batch=registry_batch, candidate_rows=candidate_rows,
+                  matching_run=latest_matching, matching_rows=matching_rows)
 
 
 @app.get('/interactions', response_class=HTMLResponse)
