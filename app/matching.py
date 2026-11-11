@@ -3,6 +3,7 @@ import csv
 from datetime import datetime, timezone
 from io import BytesIO, StringIO
 import json
+import threading
 from pathlib import Path
 from urllib.parse import quote
 
@@ -26,6 +27,8 @@ from .search import normalize
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
+# Single-process local server: serialize button double-clicks before the DB commit.
+_START_LOCK = threading.Lock()
 
 
 def _page(request, template, **context):
@@ -95,35 +98,36 @@ def matching_start(
     force: str = Form(""), db: Session = Depends(get_db),
 ):
     _check_csrf(request, csrf_token)
-    active = _run_state(db)
-    if active:
-        return RedirectResponse(f"/manage/matching/{active.id}", status_code=303)
-    batch = db.get(GrlsImportBatch, batch_id)
-    if batch is None:
-        raise HTTPException(400, "Не выбрана существующая выгрузка ГРЛС.")
-    digest, total = inventory_digest(db, batch)
-    if total == 0:
-        raise HTTPException(400, "Товарных записей нет. Сначала загрузите ассортимент.")
-    if force != "yes":
-        previous = db.scalar(
-            select(MatchingRun).where(
-                MatchingRun.batch_id == batch_id,
-                MatchingRun.input_digest == digest,
-                MatchingRun.algorithm_version == ALGORITHM_VERSION,
-                MatchingRun.state == "done",
-            ).order_by(MatchingRun.id.desc()).limit(1)
+    with _START_LOCK:
+        active = _run_state(db)
+        if active:
+            return RedirectResponse(f"/manage/matching/{active.id}", status_code=303)
+        batch = db.get(GrlsImportBatch, batch_id)
+        if batch is None:
+            raise HTTPException(400, "Не выбрана существующая выгрузка ГРЛС.")
+        digest, total = inventory_digest(db, batch)
+        if total == 0:
+            raise HTTPException(400, "Товарных записей нет. Сначала загрузите ассортимент.")
+        if force != "yes":
+            previous = db.scalar(
+                select(MatchingRun).where(
+                    MatchingRun.batch_id == batch_id,
+                    MatchingRun.input_digest == digest,
+                    MatchingRun.algorithm_version == ALGORITHM_VERSION,
+                    MatchingRun.state == "done",
+                ).order_by(MatchingRun.id.desc()).limit(1)
+            )
+            if previous:
+                return RedirectResponse(f"/manage/matching/{previous.id}?reused=1", status_code=303)
+        run = MatchingRun(
+            batch_id=batch.id, input_digest=digest, algorithm_version=ALGORITHM_VERSION,
+            state="queued", total=total,
         )
-        if previous:
-            return RedirectResponse(f"/manage/matching/{previous.id}?reused=1", status_code=303)
-    run = MatchingRun(
-        batch_id=batch.id, input_digest=digest, algorithm_version=ALGORITHM_VERSION,
-        state="queued", total=total,
-    )
-    db.add(run)
-    db.commit()
-    db.refresh(run)
-    # Starlette runs this after the response is sent, in the app's threadpool.
-    # One task per running job; no external server or new service required.
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+        # Starlette runs this after the response is sent, in the app's threadpool.
+        # One task per running job; no external server or new service required.
     background_tasks.add_task(run_matching, run.id)
     return RedirectResponse(f"/manage/matching/{run.id}", status_code=303)
 
