@@ -76,6 +76,7 @@
     <form method="post" action="/medicines/{{medicine.id}}/registry">
       <input type="hidden" name="csrf_token" value="{{csrf_token}}">
       {% if candidate %}<input type="hidden" name="candidate_id" value="{{candidate.id}}">{% endif %}
+      {% if matching_item %}<input type="hidden" name="matching_item_id" value="{{matching_item.id}}">{% endif %}
       <label class="form-field">Номер регистрационного удостоверения
         <input name="registration_number" maxlength="120" required placeholder="Точный номер из реестра" value="{{candidate.registration_number if candidate else ''}}"></label>
       <label class="form-field">Торговое наименование по реестру
