@@ -164,6 +164,11 @@ def test_full_batch_results_provenance_inventory_and_grls_unchanged(env):
     assert info.status_code == 200
     assert "Неполная запись" in info.text
     assert "МНН из выгрузки" in info.text
+    # The existing medicine page must link to the same historical item.
+    medicine_page = client.get(f"/medicines/{categories['GK'].medicine_id}")
+    assert medicine_page.status_code == 200
+    assert "Результаты массовой проверки по ГРЛС" in medicine_page.text
+    assert f"/manage/matching/{run.id}/item/{categories['GK'].id}" in medicine_page.text
 
 
 def test_idempotent_normal_run_and_explicit_forced_rerun(env):
