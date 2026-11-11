@@ -23,7 +23,8 @@ from .manage import _check_csrf, _csrf
 from .models import (
     InventoryEvent, Medicine, MedicineRegistrationLink, RegisteredComposition,
     RegisteredProduct, RegisteredSubstance, RegistryLinkEvent, GrlsImportRow,
-    GrlsImportBatch,
+    GrlsImportBatch, MatchingCandidate, MatchingItem,
+    MatchingRun, MatchingDecision,
 )
 from .search import matches, normalize
 from .trade_candidates import trade_name_key
@@ -341,6 +342,27 @@ def add_registry_entry(
             event_type="registry_manual_link",
             description=f"Manual catalog: medicine #{medicine.id} -> registered record #{entry.id}."
         ))
+        if candidate_id is not None:
+            # Only after the existing explicit official-source verification
+            # succeeds: record corresponding bulk-review decisions.
+            # No generated candidate is ever promoted automatically.
+            matches = db.scalars(
+                select(MatchingCandidate)
+                .join(MatchingItem, MatchingItem.id == MatchingCandidate.item_id)
+                .join(MatchingRun, MatchingRun.id == MatchingItem.run_id)
+                .where(
+                    MatchingItem.medicine_id == medicine.id,
+                    MatchingCandidate.grls_row_id == candidate_id,
+                    MatchingRun.state == "done",
+                )
+            ).all()
+            for matched in matches:
+                db.add(MatchingDecision(
+                    item_id=matched.item_id, candidate_id=matched.id,
+                    action="confirmed",
+                    comment="Человек отдельно сверил официальный источник, форму и дозировку; "
+                            f"регистрационная карточка №{entry.id}.",
+                ))
         db.commit()
     except (CatalogValidationError, IntegrityError) as exc:
         db.rollback()
