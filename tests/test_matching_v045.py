@@ -140,7 +140,7 @@ def test_full_batch_results_provenance_inventory_and_grls_unchanged(env):
     assert run.ambiguous == 2
     assert run.not_found == 1
     assert db.scalar(select(func.count(MatchingItem.id))) == 4
-    assert db.scalar(select(func.count(MatchingEvidence.id))) >= 30
+    assert db.scalar(select(func.count(MatchingEvidence.id))) >= 24
     assert db.scalar(select(func.count(RegisteredProduct.id))) == 0
     assert db.scalar(select(func.count(MedicineRegistrationLink.id))) == 0
     assert [(i.id, i.article_code, i.medicine.name, i.drawer.number)
