@@ -62,6 +62,7 @@ def _matching_rows(db, batch_id, trade_key):
 
 def _analyze_one(db, run, item):
     parsed = stock_attributes(item.medicine.name)
+    parsed["manufacturer"] = item.medicine.manufacturer or ""
     current = MatchingItem(
         run_id=run.id, stock_item_id=item.id,
         medicine_id=item.medicine_id,
@@ -91,6 +92,7 @@ def _analyze_one(db, run, item):
     for row in rows:
         source = source_attributes(row.release_forms_raw)
         source["trade"] = row.trade_name
+        source["holder"] = row.certificate_holder or ""
         comparison = evaluate(
             parsed, source, exact_trade=normalize(row.trade_name) == parsed["trade_key"],
             source_status=row.status_from_filename, total_same_name=total,
