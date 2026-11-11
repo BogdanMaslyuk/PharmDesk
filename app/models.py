@@ -265,3 +265,84 @@ class GrlsImportRow(Base):
     certificate_holder: Mapped[str] = mapped_column(String(600), default="")
     batch: Mapped[GrlsImportBatch] = relationship(back_populates="rows")
 
+
+
+# v0.4.5: Derived, reproducible bulk-match snapshots. Original inventory and
+# GRLS source rows remain immutable; human decisions are separately journaled.
+# Historical stock identifiers deliberately have no StockItem foreign key:
+# replacement imports must not erase past analysis evidence.
+class MatchingRun(Base):
+    __tablename__ = "matching_runs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("grls_import_batches.id"), index=True)
+    algorithm_version: Mapped[str] = mapped_column(String(40))
+    input_digest: Mapped[str] = mapped_column(String(64), index=True)
+    state: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    processed: Mapped[int] = mapped_column(Integer, default=0)
+    strong: Mapped[int] = mapped_column(Integer, default=0)
+    ambiguous: Mapped[int] = mapped_column(Integer, default=0)
+    not_found: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[int] = mapped_column(Integer, default=0)
+    error_text: Mapped[str] = mapped_column(Text, default="")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    batch: Mapped["GrlsImportBatch"] = relationship()
+    items: Mapped[list["MatchingItem"]] = relationship(back_populates="run")
+
+
+class MatchingItem(Base):
+    __tablename__ = "matching_items"
+    __table_args__ = (UniqueConstraint("run_id", "stock_item_id", name="uq_matching_run_stock"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("matching_runs.id"), index=True)
+    stock_item_id: Mapped[int] = mapped_column(Integer, index=True)
+    medicine_id: Mapped[int] = mapped_column(Integer, index=True)
+    drawer_number: Mapped[int] = mapped_column(Integer, index=True)
+    article_code: Mapped[str] = mapped_column(String(80))
+    stock_name: Mapped[str] = mapped_column(String(350))
+    stock_manufacturer: Mapped[str] = mapped_column(String(300), default="")
+    stock_fingerprint: Mapped[str] = mapped_column(String(64))
+    parsed_json: Mapped[str] = mapped_column(Text, default="{}")
+    category: Mapped[str] = mapped_column(String(20), index=True)
+    candidate_total: Mapped[int] = mapped_column(Integer, default=0)
+    reasons_json: Mapped[str] = mapped_column(Text, default="[]")
+    run: Mapped[MatchingRun] = relationship(back_populates="items")
+    candidates: Mapped[list["MatchingCandidate"]] = relationship(back_populates="item")
+
+
+class MatchingCandidate(Base):
+    __tablename__ = "matching_candidates"
+    __table_args__ = (UniqueConstraint("item_id", "grls_row_id", name="uq_matching_item_row"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    item_id: Mapped[int] = mapped_column(ForeignKey("matching_items.id"), index=True)
+    grls_row_id: Mapped[int] = mapped_column(ForeignKey("grls_import_rows.id"), index=True)
+    category: Mapped[str] = mapped_column(String(20), default="ambiguous")
+    rank: Mapped[int] = mapped_column(Integer, default=0)
+    source_row: Mapped["GrlsImportRow"] = relationship()
+    item: Mapped[MatchingItem] = relationship(back_populates="candidates")
+    evidence: Mapped[list["MatchingEvidence"]] = relationship(back_populates="candidate")
+
+
+class MatchingEvidence(Base):
+    __tablename__ = "matching_evidence"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("matching_candidates.id"), index=True)
+    field: Mapped[str] = mapped_column(String(40))
+    outcome: Mapped[str] = mapped_column(String(24))
+    stock_value: Mapped[str] = mapped_column(String(350), default="")
+    registry_value: Mapped[str] = mapped_column(String(600), default="")
+    explanation: Mapped[str] = mapped_column(String(500), default="")
+    candidate: Mapped[MatchingCandidate] = relationship(back_populates="evidence")
+
+
+class MatchingDecision(Base):
+    """Append-only human decisions, including rejection, deferral, and review."""
+    __tablename__ = "matching_decisions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    item_id: Mapped[int] = mapped_column(ForeignKey("matching_items.id"), index=True)
+    candidate_id: Mapped[int | None] = mapped_column(ForeignKey("matching_candidates.id"))
+    action: Mapped[str] = mapped_column(String(24))
+    comment: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    candidate: Mapped[MatchingCandidate | None] = relationship()
