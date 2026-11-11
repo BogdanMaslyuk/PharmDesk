@@ -1,5 +1,6 @@
 """First local MVP. Medical interaction checks are deliberately NOT simulated."""
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 import os
 import secrets
 from pathlib import Path
@@ -14,8 +15,8 @@ from sqlalchemy.orm import Session, selectinload
 from starlette.requests import Request
 from starlette.middleware.sessions import SessionMiddleware
 
-from .database import get_db, init_db
-from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition, GrlsImportBatch, GrlsImportRow
+from .database import get_db, init_db, SessionLocal
+from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition, GrlsImportBatch, GrlsImportRow, MatchingRun
 from .search import search_stock, drawer_matches, normalize
 from .trade_candidates import source_candidates
 from .version import APP_VERSION
@@ -26,6 +27,22 @@ HERE = Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Local single-process launcher: unfinished background work does not
+    # survive server shutdown. Never silently leave a permanent "running"
+    # state that prevents all future analyses.
+    with SessionLocal() as db:
+        interrupted = db.scalars(select(MatchingRun).where(
+            MatchingRun.state.in_(("queued", "running"))
+        )).all()
+        for run in interrupted:
+            run.state = "interrupted"
+            run.finished_at = datetime.now(timezone.utc)
+            run.error_text = (
+                "Сервер был остановлен до завершения анализа. "
+                "Предыдущие промежуточные результаты сохранены; запустите новый анализ."
+            )
+        if interrupted:
+            db.commit()
     yield
 
 
