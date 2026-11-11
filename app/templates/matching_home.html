@@ -31,8 +31,13 @@
     {% if batch and stocks %}
     <form method="post" action="/manage/matching/start">
       <input type="hidden" name="csrf_token" value="{{csrf_token}}">
-      <input type="hidden" name="batch_id" value="{{batch.id}}">
-      <p><b>Выбранная выгрузка:</b> {{batch.snapshot_on.strftime('%d.%m.%Y')}} · {{batch.archive_name}}</p>
+      <label class="form-field">Выберите сохранённый снимок ГРЛС
+        <select name="batch_id">
+        {% for b in batches %}
+          <option value="{{b.id}}" {% if b.id == batch.id %}selected{% endif %}>{{b.snapshot_on.strftime('%d.%m.%Y')}} · {{b.row_count}} строк · {{b.archive_name}}</option>
+        {% endfor %}
+        </select>
+      </label>
       <label class="review-check"><input type="checkbox" name="force" value="yes">
         Принудительно повторить обработку неизменённых данных (создать новую историю запуска)</label>
       <div class="actions">
