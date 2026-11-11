@@ -9,15 +9,22 @@
   <p><b>Товар аптеки:</b> {{medicine.name}} · {{medicine.manufacturer or 'Производитель не указан'}}</p>
 </div></div>
 <div class="notice">
-  <strong>Результаты — только кандидаты по тексту торгового названия.</strong>
+  <strong>Результаты — кандидаты только по полному торговому названию.</strong>
   Программа НЕ проверяет совпадение формы выпуска, дозировки, производителя или действительности регистрационного удостоверения.
   Сопоставление с товаром не сохранено. Откройте оригинальную запись ГРЛС, затем подтвердите всё вручную.
+</div>
+<div class="notice">
+  <strong>Ожидаемое название по товару:</strong> {{expected_trade or 'не определено'}}.
+  Например, «Акридерм ГК» и «Акридерм» — разные лекарственные препараты;
+  совпадение первого слова не считается достаточным.
+  {% if query_differs %}<strong>Внимание:</strong> вручную введено другое название. Эти записи не будут
+  автоматически связаны с товаром, а при попытке сохранить связь потребуется отдельно проверить идентичность.{% endif %}
 </div>
 <section class="panel">
   <div class="panel-head"><h2>Уточнить поиск</h2></div>
   <div class="panel-body">
     <form action="/catalog/grls/matches/{{medicine.id}}" method="get" class="review-filters">
-      <label>Фрагмент торгового названия (минимум 4 знака)
+      <label>Полное торговое название
         <input type="search" name="q" maxlength="100" value="{{q}}" placeholder="Например, Валз">
       </label>
       <label>Дата снимка
@@ -47,7 +54,7 @@
       <td><span class="review-chip warn">{{row.status_from_filename}}</span></td>
       <td><a class="text-link" href="/medicines/{{medicine.id}}/registry?candidate_id={{row.id}}">Начать ручную сверку ↗</a></td>
     </tr>
-    {% else %}<tr><td colspan="6" class="empty-cell">Кандидатов по этому фрагменту не найдено. Нельзя делать вывод, что препарат отсутствует в реестре.</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="6" class="empty-cell">Кандидатов по полному торговому названию не найдено. Нельзя делать вывод, что препарат отсутствует в реестре.</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 {% else %}<div class="notice">Сначала <a href="/catalog/grls/import">импортируйте ZIP-выгрузку ГРЛС</a> в отдельный справочник.</div>{% endif %}
