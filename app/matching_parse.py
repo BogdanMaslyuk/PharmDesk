@@ -35,7 +35,7 @@ _DOSE_RE = re.compile(
     r"(?![а-яa-z])", re.I
 )
 _STANDALONE_PLUS = re.compile(
-    r"(?:\+|[-–])\s*\d+(?:[.,]\d+)?\b(?!\s*(?:%|мкг|мг|ме|ед|г))",
+    r"(?:\+|[-–])\s*\d+(?:[.,]\d+)?(?![\d.,])\s*(?![%а-яa-z])",
     re.I,
 )
 _PACK_RE = re.compile(r"(?:№|N\s*)\s*(\d{1,4})", re.I)
