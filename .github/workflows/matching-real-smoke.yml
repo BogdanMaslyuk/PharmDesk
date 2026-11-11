@@ -1,0 +1,22 @@
+name: GRLS bulk matching synthetic performance check
+on:
+  push:
+    branches: [feature/v0.4.5-bulk-grls-matching]
+    paths:
+      - 'scripts/matching_real_smoke.py'
+      - '.github/workflows/matching-real-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  matching-public-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install app dependencies
+        run: pip install -r requirements.txt
+      - name: Run synthetic load test against public GRLS ZIP
+        run: python -m scripts.matching_real_smoke
