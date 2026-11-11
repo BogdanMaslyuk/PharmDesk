@@ -28,6 +28,7 @@ from .models import (
 )
 from .search import matches, normalize
 from .trade_candidates import trade_name_key
+from .matching_worker import stock_hash
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
@@ -125,7 +126,7 @@ def _record_statement():
     )
 
 
-def _registry_page(request, db, medicine, error=None, candidate=None):
+def _registry_page(request, db, medicine, error=None, candidate=None, matching_item=None):
     links = db.scalars(
         select(MedicineRegistrationLink)
         .options(
@@ -143,7 +144,7 @@ def _registry_page(request, db, medicine, error=None, candidate=None):
     return templates.TemplateResponse(request, "registry_item.html", {
         "page": "catalog", "csrf_token": _csrf(request),
         "medicine": medicine, "links": links, "available": available,
-        "error": error, "candidate": candidate,
+        "error": error, "candidate": candidate, "matching_item": matching_item,
     })
 
 
@@ -267,12 +268,27 @@ def registered_detail(registered_id: int, request: Request, db: Session = Depend
 def registry_for_medicine(
     medicine_id: int, request: Request,
     candidate_id: int | None = Query(None, ge=1),
+    matching_item_id: int | None = Query(None, ge=1),
     db: Session = Depends(get_db),
 ):
-    # Source export rows may prefill name/number only. Never copy INN,
-    # form, dose, certificate holder or registration status into curated fields.
+    # The selected source row may prefill name and number only. A bulk
+    # matching item is carried explicitly so approval is not silently copied
+    # to every package that shares the same Medicine identity.
     candidate = db.get(GrlsImportRow, candidate_id) if candidate_id else None
-    return _registry_page(request, db, _medicine(db, medicine_id), candidate=candidate)
+    item = db.get(MatchingItem, matching_item_id) if matching_item_id else None
+    if item is not None and candidate is not None:
+        eligible = db.scalar(
+            select(MatchingCandidate.id).where(
+                MatchingCandidate.item_id == item.id,
+                MatchingCandidate.grls_row_id == candidate.id,
+            )
+        )
+        if item.medicine_id != medicine_id or eligible is None:
+            item = None
+    else:
+        item = None
+    return _registry_page(request, db, _medicine(db, medicine_id),
+                          candidate=candidate, matching_item=item)
 
 
 @router.post("/medicines/{medicine_id}/registry", response_class=HTMLResponse)
@@ -284,6 +300,7 @@ def add_registry_entry(
     source_url: str = Form(...), comparison_note: str = Form(""),
     source_checked: str = Form(""), product_checked: str = Form(""),
     candidate_id: int | None = Form(None),
+    matching_item_id: int | None = Form(None),
     db: Session = Depends(get_db),
 ):
     _check_csrf(request, csrf_token)
@@ -302,6 +319,30 @@ def add_registry_entry(
                 "Подтвердите проверку источника и сопоставление с конкретным товаром."
             )
         source_note = _check_grls_candidate(db, candidate_id, medicine.name, reg, trade, form, strength, note)
+        matched = None
+        source_item = None
+        if matching_item_id is not None:
+            if candidate_id is None:
+                raise CatalogValidationError("Для подтверждения массовой проверки требуется исходная строка ГРЛС.")
+            source_item = db.get(MatchingItem, matching_item_id)
+            if source_item is None or source_item.medicine_id != medicine.id:
+                raise CatalogValidationError("Неверный идентификатор проверяемого товара.")
+            matched = db.scalar(
+                select(MatchingCandidate)
+                .where(
+                    MatchingCandidate.item_id == source_item.id,
+                    MatchingCandidate.grls_row_id == candidate_id,
+                )
+            )
+            if matched is None or source_item.run.state != "done":
+                raise CatalogValidationError("Кандидат не относится к выбранному завершённому анализу.")
+            stock = db.scalar(
+                select(StockItem)
+                .options(selectinload(StockItem.medicine), selectinload(StockItem.drawer))
+                .where(StockItem.id == source_item.stock_item_id)
+            )
+            if stock is None or stock_hash(stock) != source_item.stock_fingerprint:
+                raise CatalogValidationError("Товар изменился после анализа. Сначала повторите проверку.")
         _require_explanation(medicine.name, trade, strength, note)
         note = source_note
         key = registry_identity_key(reg, trade, form, strength, maker)
@@ -342,27 +383,13 @@ def add_registry_entry(
             event_type="registry_manual_link",
             description=f"Manual catalog: medicine #{medicine.id} -> registered record #{entry.id}."
         ))
-        if candidate_id is not None:
-            # Only after the existing explicit official-source verification
-            # succeeds: record corresponding bulk-review decisions.
-            # No generated candidate is ever promoted automatically.
-            matches = db.scalars(
-                select(MatchingCandidate)
-                .join(MatchingItem, MatchingItem.id == MatchingCandidate.item_id)
-                .join(MatchingRun, MatchingRun.id == MatchingItem.run_id)
-                .where(
-                    MatchingItem.medicine_id == medicine.id,
-                    MatchingCandidate.grls_row_id == candidate_id,
-                    MatchingRun.state == "done",
-                )
-            ).all()
-            for matched in matches:
-                db.add(MatchingDecision(
-                    item_id=matched.item_id, candidate_id=matched.id,
-                    action="confirmed",
-                    comment="Человек отдельно сверил официальный источник, форму и дозировку; "
-                            f"регистрационная карточка №{entry.id}.",
-                ))
+        if matched is not None and source_item is not None:
+            db.add(MatchingDecision(
+                item_id=source_item.id, candidate_id=matched.id,
+                action="confirmed",
+                comment="Человек отдельно сверил официальный источник, форму и дозировку; "
+                        f"регистрационная карточка №{entry.id}.",
+            ))
         db.commit()
     except (CatalogValidationError, IntegrityError) as exc:
         db.rollback()
