@@ -53,6 +53,11 @@ def test_uncertain_doses_and_wrong_forms_not_accepted():
                 if e["field"] == "form")["outcome"] == "conflict"
     a = source_attributes("таблетки, 0,05%-0,1%+1")
     assert a["dose_uncertain"]
+    multi = source_attributes("таблетки 10 мг; таблетки 20 мг")
+    assert multi["dose_uncertain"]
+    comparison = evaluate(stock_attributes("Валз таб. 10 мг + 20 мг"), multi,
+                          exact_trade=True, source_status="Действующий")
+    assert comparison["category"] == "ambiguous"
 
 
 def test_evaluates_all_41_then_displays_best_30_without_mutating_inventory():
