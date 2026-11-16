@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Аудит проверки №{{run.id}}{% endblock %}
+{% block breadcrumb %}<a href="/manage/matching">Массовая проверка</a> / <a href="/manage/matching/{{run.id}}">Запуск №{{run.id}}</a> / Аудит{% endblock %}
+{% block content %}
+<a class="backlink" href="/manage/matching/{{run.id}}">← К результатам</a>
+<div class="section-header"><div>
+  <div class="eyebrow">ДИАГНОСТИКА · ТОЛЬКО ЧТЕНИЕ</div>
+  <h1>Аудит проверки №{{run.id}}</h1>
+  <p>Алгоритм {{audit.algorithm}} · данные выбранного снимка ГРЛС</p>
+</div></div>
+<div class="notice"><strong>Важно:</strong> {{audit.disclaimer}}</div>
+<div class="stat-grid">
+  <div class="stat"><div class="stat-title">Товаров</div><div class="stat-value">{{audit.processed_items}}</div></div>
+  <div class="stat"><div class="stat-title">Совпадений полного названия</div><div class="stat-value">{{audit.candidate_pairs_by_exact_title}}</div></div>
+  <div class="stat"><div class="stat-title">Проверено строк</div><div class="stat-value">{{audit.evaluated_candidate_pairs if audit.evaluation_count_known else 'Нет сведений'}}</div></div>
+  <div class="stat"><div class="stat-title">Отображено кандидатов</div><div class="stat-value">{{audit.displayed_candidate_pairs}}</div></div>
+  <div class="stat"><div class="stat-title">Не отображено</div><div class="stat-value">{{audit.hidden_candidate_pairs}}</div></div>
+</div>
+{% if not audit.evaluation_count_known %}
+<div class="notice">Этот запуск выполнен старым алгоритмом: число реально оценённых кандидатов не записывалось. Нельзя считать, что проверены все {{audit.candidate_pairs_by_exact_title}} совпадений названия.</div>
+{% elif audit.items_not_fully_evaluated %}
+<div class="notice">В {{audit.items_not_fully_evaluated}} товарных позициях сработал защитный предел проверки строк. Полнота ранжирования для них не гарантирована.</div>
+{% endif %}
+<div class="notice">
+  {% if audit.evidence_scope == 'all_evaluated' %}
+  Сводка учитывает признаки всех оценённых строк, включая скрытые после ранжирования.
+  {% else %}
+  Исторический запуск: сводка признаков отражает только сохранённых отображённых кандидатов.
+  {% endif %}
+</div>
+<section class="panel">
+  <div class="panel-head"><h2>Сводка по сопоставлению</h2></div>
+  <div class="panel-body">
+    <p>Товаров с хотя бы одним проверенным кандидатом, у которого одновременно совпали извлечённые форма и дозировка:
+      <strong>{{audit.items_with_form_and_dose_match}}</strong>. Это не подтверждённые препараты.</p>
+    <p>Товаров с несколькими регистрационными номерами среди проверенных вариантов:
+      <strong>{{audit.items_with_multiple_registration_numbers}}</strong>.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Признак</th><th>Совпало</th><th>Неоднозначно</th><th>Недостаточно данных</th><th>Противоречие</th></tr></thead>
+    <tbody>{% for field, states in audit.evidence_counts|dictsort %}
+      <tr><td>{{{'name':'Торговое название','form':'Форма','dose':'Дозировка','release':'Высвобождение','package':'Упаковка','holder':'Держатель','status':'Статус снимка'}.get(field, field)}}</td>
+      <td>{{states.get('match',0)}}</td><td>{{states.get('ambiguous',0)}}</td>
+      <td>{{states.get('unknown',0)}}</td><td>{{states.get('conflict',0)}}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</section>
+<div class="actions"><a class="btn btn-white" href="/manage/matching/{{run.id}}/audit.json">Технический отчёт JSON</a></div>
+{% endblock %}

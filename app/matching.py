@@ -18,6 +18,7 @@ from starlette.requests import Request
 from .database import get_db
 from .manage import _check_csrf, _csrf
 from .matching_worker import ALGORITHM_VERSION, inventory_digest, run_matching, stock_hash
+from .matching_audit import matching_audit
 from .models import (
     GrlsImportBatch, GrlsImportRow, MatchingCandidate, MatchingDecision,
     MatchingEvidence, MatchingItem, MatchingRun, Medicine, StockItem,
@@ -132,6 +133,18 @@ def matching_start(
     return RedirectResponse(f"/manage/matching/{run.id}", status_code=303)
 
 
+@router.get("/manage/matching/{run_id}/audit.json")
+def matching_audit_json(run_id: int, db: Session = Depends(get_db)):
+    _get_run(db, run_id)
+    return matching_audit(db, run_id)
+
+
+@router.get("/manage/matching/{run_id}/audit", response_class=HTMLResponse)
+def matching_audit_page(run_id: int, request: Request, db: Session = Depends(get_db)):
+    run = _get_run(db, run_id)
+    return _page(request, "matching_audit.html", run=run, audit=matching_audit(db, run_id))
+
+
 @router.get("/manage/matching/{run_id}/status")
 def matching_status(run_id: int, db: Session = Depends(get_db)):
     run = _get_run(db, run_id)
@@ -187,6 +200,8 @@ def matching_results(
     items = db.scalars(
         stmt.order_by(MatchingItem.id).offset((page_number - 1) * limit).limit(limit)
     ).all()
+    evidence_groups = {item.id: json.loads(item.parsed_json or "{}").get("best_evidence_group")
+                       for item in items}
     drawers = db.scalars(
         select(MatchingItem.drawer_number).where(MatchingItem.run_id == run_id)
         .distinct().order_by(MatchingItem.drawer_number)
@@ -203,7 +218,8 @@ def matching_results(
     return _page(request, "matching_results.html", run=run, items=items, confirmed=confirmed,
                  count=count, pages=pages, page_number=page_number,
                  q=q, category=category, drawer=drawer_no, drawers=drawers,
-                 manufacturer=manufacturer, review=review)
+                 manufacturer=manufacturer, review=review,
+                 evidence_groups=evidence_groups)
 
 
 @router.get("/manage/matching/{run_id}/item/{item_id}", response_class=HTMLResponse)
@@ -296,10 +312,13 @@ def _report_rows(db, run_id):
         "Приоритет кандидата", "Регистрационный номер", "Торговое название ГРЛС",
         "МНН из выгрузки", "Формы выпуска (исходный текст)", "Категория ГРЛС",
         "Имя исходного файла", "Номер строки", "Причины",
+        "Оценено кандидатов", "Показано", "Скрыто", "Полнота анализа",
+        "Характеристика лучшего кандидата",
     ]
     yield headers
     for item in items:
         candidates = sorted(item.candidates, key=lambda x: (x.rank, x.id))
+        meta = json.loads(item.parsed_json or "{}")
         for candidate in (candidates if candidates else [None]):
             source = candidate.source_row if candidate is not None else None
             yield [
@@ -315,6 +334,14 @@ def _report_rows(db, run_id):
                 source.source_workbook if source else "",
                 source.source_row if source else "",
                 " / ".join(json.loads(item.reasons_json)),
+                meta.get("evaluated_count", "Неизвестно"), len(candidates),
+                max(0, item.candidate_total - len(candidates)),
+                ("Полная" if meta["evaluation_complete"] else "Ограничена")
+                if "evaluation_complete" in meta else "Неизвестна",
+                {"traits_match": "Извлечённые форма и доза совпали; нужна ручная проверка",
+                 "conflict": "Обнаружены противоречия",
+                 "insufficient": "Недостаточно извлечённых данных"}.get(
+                    meta.get("best_evidence_group"), "Не определено"),
             ]
 
 
@@ -348,7 +375,8 @@ def export_matching_xlsx(run_id: int, db: Session = Depends(get_db)):
     for col, width in {"A": 14, "B": 12, "C": 42, "D": 32,
                        "E": 14, "F": 14, "G": 28, "H": 36,
                        "I": 35, "J": 65, "K": 25, "L": 36,
-                       "M": 12, "N": 55}.items():
+                       "M": 12, "N": 55, "O": 20, "P": 14, "Q": 14,
+                       "R": 20, "S": 58}.items():
         ws.column_dimensions[col].width = width
     stream = BytesIO()
     wb.save(stream)

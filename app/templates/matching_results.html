@@ -38,6 +38,7 @@
 <div class="actions matching-exports">
   <a class="btn btn-white" href="/manage/matching/{{run.id}}/export.csv">Экспорт CSV</a>
   <a class="btn btn-white" href="/manage/matching/{{run.id}}/export.xlsx">Экспорт Excel</a>
+  <a class="btn btn-white" href="/manage/matching/{{run.id}}/audit">Диагностика сопоставления</a>
 </div>
 {% endif %}
 <section class="panel">
@@ -89,7 +90,11 @@
       <small class="muted">{{i.stock_manufacturer or 'Производитель не указан'}}</small></td>
       <td>
         {% if i.category == 'strong' %}<span class="review-chip warn">Сильный кандидат · не подтверждён</span>
-        {% elif i.category == 'ambiguous' %}<span class="review-chip warn">Неоднозначно</span>
+        {% elif i.category == 'ambiguous' %}
+          <span class="review-chip warn">Неоднозначно</span>
+          {% if evidence_groups.get(i.id) == 'traits_match' %}<small class="muted">Есть совпадение формы и дозы · требуется ручная проверка</small>
+          {% elif evidence_groups.get(i.id) == 'conflict' %}<small class="muted">У наиболее близкого кандидата есть противоречие</small>
+          {% elif evidence_groups.get(i.id) == 'insufficient' %}<small class="muted">Недостаточно определённых признаков</small>{% endif %}
         {% else %}<span class="review-chip blocked">Кандидаты не найдены</span>{% endif %}
       </td>
       <td>{{i.candidate_total}}</td>

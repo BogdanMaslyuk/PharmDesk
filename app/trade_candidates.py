@@ -54,6 +54,35 @@ def trade_name_key(inventory_name):
     return normalize(trade_name_from_stock(inventory_name))
 
 
+
+def trade_name_from_snapshot(inventory_name, known_keys):
+    """Choose a COMPLETE registered trade name at a safe word boundary.
+
+    A suffix is only discarded when it begins with a recognized dosage,
+    pharmaceutical form or package marker. Unknown brand suffixes (GK,
+    Forte, numeric product names) are not silently removed. This function
+    does not validate the package or assert registration validity.
+    """
+    words = _WORD.findall(str(inventory_name or "").casefold().replace("ё", "е"))
+    for end in range(min(len(words), 12), 0, -1):
+        phrase = " ".join(words[:end])
+        if normalize(phrase) not in known_keys:
+            continue
+        suffix = words[end:]
+        if not suffix:
+            return phrase
+        if suffix[0] in _AFTER_BRAND:
+            return phrase
+        # A numeral is not assumed to be a dose merely because it follows
+        # a possible brand. Require an explicit unit after the numeral.
+        if (suffix[0][0].isdigit() and len(suffix) > 1
+                and suffix[1] in {"мг", "мкг", "ме", "ед", "г", "мл", "iu"}):
+            return phrase
+    # Retain the whole unrecognized label: never fall back to a shorter
+    # family name ("МИГ" instead of "МИГ 400", "Акридерм" vs "ГК").
+    return str(inventory_name or "").strip()
+
+
 def source_candidates(db, batch_id, *, medicine_name, trade_name=None, limit=5):
     """Only identical full trade names: NEVER a shared first-word prefix.
 
