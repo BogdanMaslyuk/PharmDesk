@@ -106,10 +106,11 @@ try {
     Write-Host ""
     Write-Host "Будут ПЕРЕМЕЩЕНЫ, а не удалены, существующие папки." -ForegroundColor Yellow
     Write-Host "Убедитесь, что окна Python/редакторы и сервер PharmDesk закрыты."
+    Write-Host "Подтверждение: ПЕРЕНЕСТИ или MOVE (если консоль не поддерживает русские символы)."
     $confirm=if([string]::IsNullOrWhiteSpace($Approval)){
         Read-Host "Напишите ПЕРЕНЕСТИ для подтверждения"
     } else { $Approval }
-    if($confirm -cne "ПЕРЕНЕСТИ"){
+    if($confirm -cne "ПЕРЕНЕСТИ" -and $confirm -cne "MOVE"){
         Write-Host "Отменено. Ничего не менялось."
         exit 0
     }
