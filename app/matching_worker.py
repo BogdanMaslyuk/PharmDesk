@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from .database import SessionLocal
 from .matching_parse import evaluate, source_attributes, stock_attributes
+from .trade_candidates import trade_name_from_snapshot
 from .models import (
     GrlsImportRow, MatchingCandidate, MatchingEvidence,
     MatchingItem, MatchingRun, StockItem, Medicine,
@@ -21,6 +22,8 @@ from .search import normalize
 
 ALGORITHM_VERSION = "0.4.5-conservative-1"
 MAX_CANDIDATES_PER_ITEM = 30
+# Guard against unusually large title families. Do not claim full coverage if exceeded.
+MAX_EVALUATED_PER_ITEM = 2000
 
 
 def stock_hash(item):
@@ -45,23 +48,59 @@ def inventory_digest(db, batch):
 
 
 def _matching_rows(db, batch_id, trade_key):
+    """Fetch exact title records for evidence-first ranking, not ID-first truncation."""
     if len(trade_key) < 3 or trade_key.isdigit():
-        return 0, []
+        return 0, [], False
     stmt = select(GrlsImportRow).where(
         GrlsImportRow.batch_id == batch_id,
         GrlsImportRow.trade_key == trade_key,
     )
-    found = db.scalars(
-        stmt.order_by(GrlsImportRow.id).limit(MAX_CANDIDATES_PER_ITEM + 1)
+    rows = db.scalars(
+        stmt.order_by(GrlsImportRow.id).limit(MAX_EVALUATED_PER_ITEM + 1)
     ).all()
-    if len(found) <= MAX_CANDIDATES_PER_ITEM:
-        return len(found), found
-    count = db.scalar(select(func.count()).select_from(stmt.subquery())) or len(found)
-    return count, found[:MAX_CANDIDATES_PER_ITEM]
+    if len(rows) <= MAX_EVALUATED_PER_ITEM:
+        return len(rows), rows, False
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or len(rows)
+    return total, rows[:MAX_EVALUATED_PER_ITEM], True
+
+
+def _resolve_trade(db, batch_id, inventory_name):
+    """Resolve exact title from snapshot only at a safe form/package boundary."""
+    import re
+    words = re.findall(r"[а-яёa-z0-9]+", str(inventory_name or "").casefold().replace("ё", "е"))
+    phrases = [" ".join(words[:i]) for i in range(1, min(len(words), 12) + 1)]
+    keys = {normalize(p) for p in phrases if len(normalize(p)) >= 3}
+    if not keys:
+        return inventory_name
+    known = set(db.scalars(select(GrlsImportRow.trade_key).where(
+        GrlsImportRow.batch_id == batch_id,
+        GrlsImportRow.trade_key.in_(keys),
+    ).distinct()).all())
+    return trade_name_from_snapshot(inventory_name, known)
+
+
+def _rank_candidate(pair):
+    """Evidence-only ranking; no estimated medical probability or verification."""
+    row, comp = pair
+    states = {ev["field"]: ev["outcome"] for ev in comp["evidence"]}
+    critical = ("name", "form", "dose", "release")
+    conflicts = sum(states.get(k) == "conflict" for k in critical)
+    matched = sum(states.get(k) == "match" for k in ("name", "form", "dose"))
+    uncertain = sum(states.get(k) in ("ambiguous", "unknown") for k in ("form", "dose", "release"))
+    return (
+        conflicts,
+        -matched,
+        uncertain,
+        0 if states.get("package") == "match" else 1,
+        0 if row.status_from_filename in ("Действующий", "Выдано по правилам ЕАЭС") else 1,
+        row.registration_number or "",
+        row.id,
+    )
 
 
 def _analyze_one(db, run, item):
-    parsed = stock_attributes(item.medicine.name)
+    resolved_trade = _resolve_trade(db, run.batch_id, item.medicine.name)
+    parsed = stock_attributes(item.medicine.name, trade_override=resolved_trade)
     parsed["manufacturer"] = item.medicine.manufacturer or ""
     current = MatchingItem(
         run_id=run.id, stock_item_id=item.id,
@@ -76,8 +115,12 @@ def _analyze_one(db, run, item):
     )
     db.add(current)
     db.flush()
-    total, rows = _matching_rows(db, run.batch_id, parsed["trade_key"])
+    total, rows, truncated_evaluation = _matching_rows(db, run.batch_id, parsed["trade_key"])
     current.candidate_total = total
+    parsed["evaluated_count"] = len(rows)
+    parsed["evaluation_complete"] = not truncated_evaluation
+    parsed["displayed_count"] = min(MAX_CANDIDATES_PER_ITEM, len(rows))
+    current.parsed_json = json.dumps(parsed, ensure_ascii=False)
     if not rows:
         current.category = "none"
         current.reasons_json = json.dumps(
@@ -99,28 +142,27 @@ def _analyze_one(db, run, item):
         )
         candidate_results.append((row, comparison))
     # Incompleteness or family-name ambiguity must not be hidden by ranking.
-    strong = (total == 1 and candidate_results[0][1]["category"] == "strong")
+    candidate_results.sort(key=_rank_candidate)
+    visible_results = candidate_results[:MAX_CANDIDATES_PER_ITEM]
+    strong = (not truncated_evaluation and total == 1
+              and candidate_results[0][1]["category"] == "strong")
     current.category = "strong" if strong else "ambiguous"
     if strong:
         run.strong += 1
     else:
         run.ambiguous += 1
     reasons = []
+    if truncated_evaluation:
+        reasons.append(f"Ограничение вычислений: проверено {len(rows)} из {total}; "
+                       "полнота выбора не гарантирована.")
     if total > MAX_CANDIDATES_PER_ITEM:
-        reasons.append(
-            f"В реестре {total} записей с таким названием; показаны первые "
-            f"{MAX_CANDIDATES_PER_ITEM} без автоматического выбора."
-        )
+        reasons.append(f"Оценено {len(rows)} из {total}, показаны лучшие "
+                       f"{len(visible_results)} по извлечённым признакам; "
+                       "скрытые альтернативы требуют дополнительной проверки.")
     if total > 1:
         reasons.append(f"Найдено {total} регистрационных записей с тем же полным названием.")
     # Preserve detailed comparison for each candidate, not just a score.
-    for rank, (row, comp) in enumerate(
-        sorted(candidate_results, key=lambda pair: (
-            0 if pair[1]["category"] == "strong" else 1,
-            0 if pair[0].status_from_filename == "Действующий" else 1,
-            pair[0].registration_number, pair[0].id,
-        )), start=1
-    ):
+    for rank, (row, comp) in enumerate(visible_results, start=1):
         match = MatchingCandidate(
             item_id=current.id, grls_row_id=row.id,
             category=comp["category"], rank=rank,
