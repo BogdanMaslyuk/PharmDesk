@@ -3,7 +3,8 @@
 [CmdletBinding()]
 param(
     [ValidateSet("Menu","Start","Stop","Open","OpenMatching","Status","Diagnose","Backup","Update","Tests","Logs","Folder")]
-    [string]$Action="Menu"
+    [string]$Action="Menu",
+    [switch]$NoBrowser
 )
 $ErrorActionPreference="Stop"
 Set-StrictMode -Version Latest
@@ -79,7 +80,7 @@ function Start-Service {
     $healthy=Get-Health
     if($null -ne $healthy){
         Write-Host ("PharmDesk уже запущен: v"+$healthy.version) -ForegroundColor Green
-        Open-Browser "/"
+        if(-not $NoBrowser){Open-Browser "/"}
         return
     }
     if(Test-Port){
@@ -102,7 +103,7 @@ function Start-Service {
         if($null -ne $healthy){
             Write-Host ("Сервер готов. Версия: "+$healthy.version) -ForegroundColor Green
             Write-Host "Сайт: http://127.0.0.1:8000"
-            Open-Browser "/"
+            if(-not $NoBrowser){Open-Browser "/"}
             return
         }
         if($process.HasExited){break}
