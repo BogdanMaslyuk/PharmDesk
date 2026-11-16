@@ -283,7 +283,8 @@ def test_filter_manufacturer_and_review_state(env):
     assert "Акридерм ГК" in filtered.text
     assert "Тестоформ" not in filtered.text
     unreviewed = client.get(base, params={"review":"unreviewed"})
-    assert "Акридерм ГК" not in unreviewed.text
+    assert unreviewed.status_code == 200
+    assert f'href="{base}/item/{candidate.item_id}"' not in unreviewed.text
     reviewed = client.get(base, params={"review":"reviewed"})
     assert "Акридерм ГК" in reviewed.text
 
