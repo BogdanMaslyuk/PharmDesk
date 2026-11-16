@@ -148,6 +148,8 @@ def matching_results(
     run_id: int, request: Request, q: str = Query("", max_length=100),
     category: str = Query("all", max_length=20),
     drawer: str = Query("", max_length=10),
+    manufacturer: str = Query("", max_length=100),
+    review: str = Query("all", max_length=20),
     page_number: int = Query(1, ge=1), db: Session = Depends(get_db),
 ):
     run = _get_run(db, run_id)
@@ -159,6 +161,19 @@ def matching_results(
     drawer_no = int(drawer) if drawer.isdecimal() and int(drawer) > 0 else None
     if drawer_no is not None:
         stmt = stmt.where(MatchingItem.drawer_number == drawer_no)
+    if manufacturer.strip():
+        stmt = stmt.where(MatchingItem.stock_manufacturer.ilike("%" + manufacturer.strip() + "%"))
+    if review not in {"all", "reviewed", "unreviewed", "confirmed", "rejected", "deferred"}:
+        review = "all"
+    review_ids = select(MatchingDecision.item_id)
+    if review == "unreviewed":
+        stmt = stmt.where(~MatchingItem.id.in_(review_ids))
+    elif review == "reviewed":
+        stmt = stmt.where(MatchingItem.id.in_(review_ids))
+    elif review != "all":
+        stmt = stmt.where(MatchingItem.id.in_(
+            review_ids.where(MatchingDecision.action == review)
+        ))
     if q.strip():
         # SQL search over a small local result set; never scan full GRLS.
         stmt = stmt.where(or_(
@@ -187,7 +202,8 @@ def matching_results(
     ) or 0
     return _page(request, "matching_results.html", run=run, items=items, confirmed=confirmed,
                  count=count, pages=pages, page_number=page_number,
-                 q=q, category=category, drawer=drawer_no, drawers=drawers)
+                 q=q, category=category, drawer=drawer_no, drawers=drawers,
+                 manufacturer=manufacturer, review=review)
 
 
 @router.get("/manage/matching/{run_id}/item/{item_id}", response_class=HTMLResponse)
