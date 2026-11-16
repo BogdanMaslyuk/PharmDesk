@@ -10,6 +10,9 @@ on:
       - 'start-windows.bat'
       - 'replace-inventory-windows.bat'
       - 'replace-inventory-windows.ps1'
+      - 'control-windows.ps1'
+      - 'control-windows.bat'
+      - 'organize-desktop.ps1'
       - '.gitattributes'
       - '.github/workflows/windows-update-syntax.yml'
   pull_request:
@@ -22,6 +25,9 @@ on:
       - 'start-windows.bat'
       - 'replace-inventory-windows.bat'
       - 'replace-inventory-windows.ps1'
+      - 'control-windows.ps1'
+      - 'control-windows.bat'
+      - 'organize-desktop.ps1'
       - '.gitattributes'
       - '.github/workflows/windows-update-syntax.yml'
 
@@ -36,7 +42,7 @@ jobs:
       - name: Check PowerShell syntax using Windows PowerShell 5.1
         shell: powershell
         run: |
-          foreach ($file in @("update-windows.ps1", "pharmdesk.ps1", "replace-inventory-windows.ps1")) {
+          foreach ($file in @("update-windows.ps1", "pharmdesk.ps1", "replace-inventory-windows.ps1", "control-windows.ps1", "organize-desktop.ps1")) {
             $tokens = $null
             $errors = $null
             $null = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -50,7 +56,7 @@ jobs:
             }
             Write-Host "PowerShell 5.1 syntax OK: $file"
           }
-          foreach ($file in @("update-windows.ps1", "pharmdesk.ps1")) {
+          foreach ($file in @("update-windows.ps1", "pharmdesk.ps1", "control-windows.ps1", "organize-desktop.ps1")) {
             $bytes = [System.IO.File]::ReadAllBytes((Join-Path $PWD $file))
             if ($bytes.Length -lt 3 -or $bytes[0] -ne 239 -or $bytes[1] -ne 187 -or $bytes[2] -ne 191) {
               throw "Missing UTF-8 BOM for Windows PowerShell 5.1: $file"
@@ -59,7 +65,7 @@ jobs:
       - name: Check batch file ASCII and Windows line endings
         shell: pwsh
         run: |
-          foreach ($file in @("update-windows.bat", "pharmdesk.bat", "start-windows.bat")) {
+          foreach ($file in @("update-windows.bat", "pharmdesk.bat", "start-windows.bat", "control-windows.bat")) {
             $bytes = [System.IO.File]::ReadAllBytes((Join-Path $PWD $file))
             if ($bytes | Where-Object { $_ -gt 127 }) {
               throw "Windows batch wrapper must be ASCII-only: $file"
@@ -73,7 +79,7 @@ jobs:
       - name: Ensure Git checkout is clean and batch EOL rules are correct
         shell: pwsh
         run: |
-          $files = @("setup-windows.bat", "start-windows.bat", "update-windows.bat", "replace-inventory-windows.bat", "pharmdesk.bat")
+          $files = @("setup-windows.bat", "start-windows.bat", "update-windows.bat", "replace-inventory-windows.bat", "pharmdesk.bat", "control-windows.bat")
           $eol = @(& git ls-files --eol -- $files)
           if ($LASTEXITCODE -ne 0 -or $eol.Count -ne $files.Count) {
             throw "Could not check tracked batch files."
@@ -91,3 +97,42 @@ jobs:
           }
           Write-Host "Clean Git checkout verified."
 
+
+      - name: Verify control center status and workspace preview are read-only
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\control-windows.ps1 -Action Status
+          if ($LASTEXITCODE -ne 0) { throw "Control center status failed." }
+          $desktop = Join-Path $env:RUNNER_TEMP "PharmDesk_workspace_preview"
+          New-Item -ItemType Directory -Force -Path (Join-Path $desktop "PharmDesk-git") | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $desktop "PharmDesk-main") | Out-Null
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\organize-desktop.ps1 -DesktopPath $desktop
+          if ($LASTEXITCODE -ne 0) { throw "Workspace dry-run failed." }
+          if (Test-Path (Join-Path $desktop "PharmDesk_Project")) {
+            throw "Dry-run unexpectedly created files."
+          }
+          if (-not (Test-Path (Join-Path $desktop "PharmDesk-main"))) {
+            throw "Dry-run moved or removed a legacy folder."
+          }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Smoke-test managed server start, health, and stop on Windows
+        shell: powershell
+        run: |
+          & python -m venv .venv
+          if ($LASTEXITCODE -ne 0) { throw "venv failed" }
+          & .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "pip failed" }
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\control-windows.ps1 -Action Start -NoBrowser
+          if ($LASTEXITCODE -ne 0) { throw "Managed start failed." }
+          try {
+            $health = Invoke-RestMethod http://127.0.0.1:8000/health -TimeoutSec 5
+            if ($health.version -ne "0.4.6") {
+              throw "Wrong server or version: $($health.version)"
+            }
+            Write-Host "Real local server health OK"
+          } finally {
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\control-windows.ps1 -Action Stop
+            if ($LASTEXITCODE -ne 0) { throw "Managed stop failed." }
+          }
