@@ -30,8 +30,21 @@ def matching_audit(db, run_id):
     evaluated = 0
     evaluation_known = True
     incomplete = 0
+    all_evidence_complete = True
+    all_evidence = {}
+    all_form_dose_matches = 0
+    all_multiple_reg = 0
     for item in items:
         data = json.loads(item.parsed_json or "{}")
+        if "all_evidence_counts" not in data:
+            all_evidence_complete = False
+        else:
+            for field, states in data["all_evidence_counts"].items():
+                dest = all_evidence.setdefault(field, {})
+                for outcome, n in states.items():
+                    dest[outcome] = dest.get(outcome, 0) + n
+            all_form_dose_matches += bool(data.get("any_form_dose_match_evaluated", False))
+            all_multiple_reg += data.get("distinct_registration_numbers_evaluated", 0) > 1
         if "evaluated_count" not in data:
             evaluation_known = False
         else:
@@ -71,6 +84,12 @@ def matching_audit(db, run_id):
      .join(MatchingItem, MatchingCandidate.item_id == MatchingItem.id)
      .where(MatchingItem.run_id == run_id)
      .group_by(MatchingCandidate.item_id)).all()
+    if all_evidence_complete:
+        evidence = all_evidence
+        with_form_dose = all_form_dose_matches
+        multiple_regs = all_multiple_reg
+    else:
+        multiple_regs = sum(n > 1 for _, n in variants)
     return {
         "run_id": run_id,
         "algorithm": run.algorithm_version,
@@ -81,9 +100,10 @@ def matching_audit(db, run_id):
         "items_not_fully_evaluated": incomplete if evaluation_known else None,
         "displayed_candidate_pairs": displayed,
         "hidden_candidate_pairs": total_name_pairs - displayed,
-        "items_with_form_and_dose_match_among_displayed": with_form_dose,
-        "items_with_multiple_registration_numbers_among_displayed": sum(n > 1 for _, n in variants),
+        "items_with_form_and_dose_match": with_form_dose,
+        "items_with_multiple_registration_numbers": multiple_regs,
         "evidence_counts": evidence,
+        "evidence_scope": "all_evaluated" if all_evidence_complete else "displayed_only",
         "disclaimer": (
             "Признаки относятся к загруженному снимку ГРЛС. "
             "Совпадение не подтверждает состав, действующую регистрацию "
