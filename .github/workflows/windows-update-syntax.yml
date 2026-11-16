@@ -151,7 +151,7 @@ jobs:
             New-Item -ItemType Directory -Force -Path $path | Out-Null
             [System.IO.File]::WriteAllText((Join-Path $path "keep.txt"),$name)
           }
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\organize-desktop.ps1 -DesktopPath $desktop -Apply -Approval "ПЕРЕНЕСТИ"
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\organize-desktop.ps1 -DesktopPath $desktop -Apply -Approval "MOVE"
           if ($LASTEXITCODE -ne 0) { throw "Workspace transfer failed." }
           $workspace=Join-Path $desktop "PharmDesk_Project"
           if (-not (Test-Path (Join-Path $workspace "PharmDesk-git\app\database.py"))) {
@@ -165,6 +165,6 @@ jobs:
               throw "Legacy data disappeared: $name"
             }
           }
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\organize-desktop.ps1 -DesktopPath $desktop -Apply -Approval "ПЕРЕНЕСТИ"
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\organize-desktop.ps1 -DesktopPath $desktop -Apply -Approval "MOVE"
           if ($LASTEXITCODE -ne 0) { throw "Idempotent workspace rerun failed." }
           Write-Host "Workspace relocation preserved all folders and can be rechecked."
