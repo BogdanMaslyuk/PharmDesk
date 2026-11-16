@@ -1,7 +1,7 @@
 ﻿# PharmDesk Desktop workspace organizer. Windows PowerShell 5.1.
 # Default is preview-only. Apply requires explicit interactive confirmation.
 [CmdletBinding()]
-param([switch]$Apply,[string]$DesktopPath="")
+param([switch]$Apply,[string]$DesktopPath="",[string]$Approval="")
 $ErrorActionPreference="Stop"
 Set-StrictMode -Version Latest
 
@@ -106,7 +106,9 @@ try {
     Write-Host ""
     Write-Host "Будут ПЕРЕМЕЩЕНЫ, а не удалены, существующие папки." -ForegroundColor Yellow
     Write-Host "Убедитесь, что окна Python/редакторы и сервер PharmDesk закрыты."
-    $confirm=Read-Host "Напишите ПЕРЕНЕСТИ для подтверждения"
+    $confirm=if([string]::IsNullOrWhiteSpace($Approval)){
+        Read-Host "Напишите ПЕРЕНЕСТИ для подтверждения"
+    } else { $Approval }
     if($confirm -cne "ПЕРЕНЕСТИ"){
         Write-Host "Отменено. Ничего не менялось."
         exit 0
