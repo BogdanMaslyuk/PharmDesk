@@ -27,6 +27,8 @@ REQUIRED_TABLES = (
     "registered_products", "registered_substances",
     "registered_compositions", "medicine_registration_links", "registry_link_events",
     "grls_import_batches", "grls_import_rows",
+    "matching_runs", "matching_items", "matching_candidates",
+    "matching_evidence", "matching_decisions",
 )
 
 

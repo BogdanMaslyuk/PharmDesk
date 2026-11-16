@@ -1,7 +1,9 @@
 """First local MVP. Medical interaction checks are deliberately NOT simulated."""
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 import os
 import secrets
+import socket
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -14,8 +16,8 @@ from sqlalchemy.orm import Session, selectinload
 from starlette.requests import Request
 from starlette.middleware.sessions import SessionMiddleware
 
-from .database import get_db, init_db
-from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition, GrlsImportBatch, GrlsImportRow
+from .database import get_db, init_db, SessionLocal
+from .models import ClinicalRecord, Drawer, Ingredient, Medicine, StockItem, ReviewRecord, MedicineRegistrationLink, RegisteredProduct, RegisteredComposition, GrlsImportBatch, GrlsImportRow, MatchingRun, MatchingItem
 from .search import search_stock, drawer_matches, normalize
 from .trade_candidates import source_candidates
 from .version import APP_VERSION
@@ -26,6 +28,28 @@ HERE = Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Restore abandoned tasks only if no other local server is listening.
+    # Otherwise a second attempted launch could interrupt the first process.
+    already_running = False
+    try:
+        with socket.create_connection(("127.0.0.1", 8000), timeout=0.3):
+            already_running = True
+    except OSError:
+        pass
+    if not already_running:
+        with SessionLocal() as db:
+            interrupted = db.scalars(select(MatchingRun).where(
+                MatchingRun.state.in_(("queued", "running"))
+            )).all()
+            for run in interrupted:
+                run.state = "interrupted"
+                run.finished_at = datetime.now(timezone.utc)
+                run.error_text = (
+                    "Сервер был остановлен до завершения анализа. "
+                    "Предыдущие промежуточные результаты сохранены; запустите новый анализ."
+                )
+            if interrupted:
+                db.commit()
     yield
 
 
@@ -146,9 +170,27 @@ def medicine_detail(medicine_id: int, request: Request, db: Session = Depends(ge
         )
         if registry_batch else []
     )
+    latest_matching = db.scalar(
+        select(MatchingRun)
+        .where(MatchingRun.state == "done")
+        .order_by(MatchingRun.id.desc()).limit(1)
+    )
+    matching_rows = (
+        db.scalars(
+            select(MatchingItem)
+            .where(
+                MatchingItem.run_id == latest_matching.id,
+                MatchingItem.medicine_id == medicine_id,
+            )
+            .order_by(MatchingItem.drawer_number, MatchingItem.article_code)
+            .limit(25)
+        ).all()
+        if latest_matching else []
+    )
     return render(request, 'medicine.html', page='medicines', medicine=medicine,
                   verified=verified, related=related, registrations=registrations,
-                  registry_batch=registry_batch, candidate_rows=candidate_rows)
+                  registry_batch=registry_batch, candidate_rows=candidate_rows,
+                  matching_run=latest_matching, matching_rows=matching_rows)
 
 
 @app.get('/interactions', response_class=HTMLResponse)
@@ -207,3 +249,6 @@ app.include_router(catalog_router)
 
 from .quality import router as quality_router  # noqa: E402
 app.include_router(quality_router)
+
+from .matching import router as matching_router  # noqa: E402
+app.include_router(matching_router)

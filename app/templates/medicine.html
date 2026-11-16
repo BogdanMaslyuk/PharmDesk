@@ -5,6 +5,25 @@
 <a class="backlink" href="/medicines">← Все препараты</a><section class="medicine-hero"><div class="medicine-icon">✚</div><div><div class="eyebrow">ТОВАРНАЯ КАРТОЧКА</div><h1>{{ medicine.name }}</h1><p>{{ medicine.manufacturer or 'Производитель не указан' }}</p></div></section>
 <div class="details-grid"><section class="panel"><div class="panel-head"><h2>Основная информация</h2></div><dl class="detail-list"><div><dt>Наименование</dt><dd>{{ medicine.name }}</dd></div><div><dt>Производитель</dt><dd>{{ medicine.manufacturer or 'Не указан' }}</dd></div><div><dt>Действующее вещество</dt><dd>{% if medicine.ingredients %}{{ medicine.ingredients|map(attribute='name')|join(', ') }} <small class="muted">(предварительные справочные данные)</small>{% else %}Не сопоставлено с МНН{% endif %}</dd></div><div><dt>Показания</dt><dd>Нет проверенной информации в локальной базе</dd></div><div><dt>Противопоказания</dt><dd>Нет проверенной информации в локальной базе</dd></div></dl></section>
 <section class="panel"><div class="panel-head"><h2>Где находится</h2></div><div class="location-list">{% for s in medicine.stock_items %}<a href="/drawers/{{ s.drawer.number }}" class="location-box"><span class="location-number">№ {{ s.drawer.number }}</span><span><b>{{ s.drawer.name }}</b><small>Код {{ s.article_code }} · Остаток не проверен</small></span><span>↗</span></a>{% endfor %}</div></section></div>
+{% if matching_run and matching_rows %}
+<section class="panel information-panel">
+  <div class="panel-head"><div>
+    <h2>Результаты массовой проверки по ГРЛС</h2>
+    <p>Запуск №{{matching_run.id}} по выгрузке от {{matching_run.batch.snapshot_on.strftime('%d.%m.%Y')}}.
+    Это вычислительные кандидаты, не подтверждённые медицинские сведения.</p>
+  </div><a class="text-link" href="/manage/matching/{{matching_run.id}}">Все результаты проверки ↗</a></div>
+  <div class="mini-list">
+    {% for match in matching_rows %}
+    <div class="mini-row"><div class="pill-icon">◎</div>
+      <div class="mini-copy"><b>Код {{match.article_code}} · Ящик №{{match.drawer_number}}</b>
+        <small>{% if match.category == 'strong' %}Сильный кандидат (требуется сверка){% elif match.category == 'ambiguous' %}Неоднозначное сопоставление{% else %}Кандидаты не найдены{% endif %}
+        · записей {{match.candidate_total}}</small></div>
+      <a class="text-link" href="/manage/matching/{{matching_run.id}}/item/{{match.id}}">Проверить ↗</a>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 <section class="panel information-panel">
 <div class="panel-head"><div><h2>Связь с Государственным реестром лекарственных средств</h2>
 <p>Отдельные регистрационные карточки, форма выпуска, дозировка, состав и проверенный человеком источник. Автоматического сопоставления нет.</p></div>
