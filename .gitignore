@@ -29,3 +29,6 @@ ls_ocr_refined.json
 
 # Local database snapshots made by the Windows updater
 backups/
+
+# Local control-center runtime state and server logs
+.run/
