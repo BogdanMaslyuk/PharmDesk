@@ -115,6 +115,10 @@ def stock_attributes(name, *, trade_override=None):
 
 def source_attributes(raw):
     doses, uncertain = extract_doses(raw)
+    # A single unstructured registry cell can enumerate several different
+    # release variants. Multiple strengths cannot be assigned to one package
+    # without independent linkage to the particular form/ingredient.
+    uncertain = uncertain or len(doses) > 1
     return {
         "forms": extract_forms(raw),
         "doses": doses,
