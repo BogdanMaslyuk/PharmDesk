@@ -113,7 +113,9 @@ def test_evaluates_all_41_then_displays_best_30_without_mutating_inventory():
             assert report["evaluated_candidate_pairs"] == 41
             assert report["displayed_candidate_pairs"] == 30
             assert report["hidden_candidate_pairs"] == 11
-            assert report["items_with_form_and_dose_match_among_displayed"] == 1
+            assert report["evidence_scope"] == "all_evaluated"
+            assert report["evidence_counts"]["name"]["match"] == 41
+            assert report["items_with_form_and_dose_match"] == 1
             assert db.scalar(select(StockItem)).article_code == "X-47"
             assert db.scalar(select(Medicine)).name == "Валз таб. 160 мг"
     finally:
@@ -145,5 +147,6 @@ def test_old_run_audit_does_not_claim_all_evaluated():
             assert result["evaluation_count_known"] is False
             assert result["evaluated_candidate_pairs"] is None
             assert result["hidden_candidate_pairs"] == 50
+            assert result["evidence_scope"] == "displayed_only"
     finally:
         engine.dispose()
