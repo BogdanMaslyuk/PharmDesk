@@ -61,6 +61,19 @@
       {% for no in drawers %}<option value="{{no}}" {% if drawer == no %}selected{% endif %}>№{{no}}</option>{% endfor %}
     </select>
   </label>
+  <label>Производитель
+    <input type="search" name="manufacturer" maxlength="100" value="{{manufacturer}}" placeholder="По товарному каталогу">
+  </label>
+  <label>Ручная проверка
+    <select name="review">
+      <option value="all">Все</option>
+      <option value="unreviewed" {% if review == "unreviewed" %}selected{% endif %}>Без решений</option>
+      <option value="reviewed" {% if review == "reviewed" %}selected{% endif %}>Проверенные</option>
+      <option value="confirmed" {% if review == "confirmed" %}selected{% endif %}>Подтверждено человеком</option>
+      <option value="deferred" {% if review == "deferred" %}selected{% endif %}>Отложено</option>
+      <option value="rejected" {% if review == "rejected" %}selected{% endif %}>Отклонено</option>
+    </select>
+  </label>
   <button type="submit" class="btn btn-primary">Показать</button>
 </form>
 </div></section>
@@ -89,11 +102,11 @@
   {% if pages > 1 %}
   <div class="review-pages">
     {% if page_number > 1 %}
-      <a class="btn btn-white" href="/manage/matching/{{run.id}}?q={{q|urlencode}}&category={{category}}{% if drawer %}&drawer={{drawer}}{% endif %}&page_number={{page_number-1}}">← Назад</a>
+      <a class="btn btn-white" href="/manage/matching/{{run.id}}?q={{q|urlencode}}&category={{category}}&manufacturer={{manufacturer|urlencode}}&review={{review}}{% if drawer %}&drawer={{drawer}}{% endif %}&page_number={{page_number-1}}">← Назад</a>
     {% endif %}
     <span>Страница {{page_number}} из {{pages}}</span>
     {% if page_number < pages %}
-      <a class="btn btn-white" href="/manage/matching/{{run.id}}?q={{q|urlencode}}&category={{category}}{% if drawer %}&drawer={{drawer}}{% endif %}&page_number={{page_number+1}}">Вперёд →</a>
+      <a class="btn btn-white" href="/manage/matching/{{run.id}}?q={{q|urlencode}}&category={{category}}&manufacturer={{manufacturer|urlencode}}&review={{review}}{% if drawer %}&drawer={{drawer}}{% endif %}&page_number={{page_number+1}}">Вперёд →</a>
     {% endif %}
   </div>{% endif %}
 </section>
