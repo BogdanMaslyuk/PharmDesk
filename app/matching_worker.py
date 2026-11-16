@@ -120,6 +120,7 @@ def _analyze_one(db, run, item):
     parsed["evaluated_count"] = len(rows)
     parsed["evaluation_complete"] = not truncated_evaluation
     parsed["displayed_count"] = min(MAX_CANDIDATES_PER_ITEM, len(rows))
+    parsed["all_evidence_counts"] = {}
     current.parsed_json = json.dumps(parsed, ensure_ascii=False)
     if not rows:
         current.category = "none"
@@ -142,6 +143,24 @@ def _analyze_one(db, run, item):
         )
         candidate_results.append((row, comparison))
     # Incompleteness or family-name ambiguity must not be hidden by ranking.
+    # Store only aggregated evidence for all evaluated rows. Full source evidence
+    # for the top 30 remains inspectable in matching_evidence.
+    evidence_counts = {}
+    for source_row, comparison in candidate_results:
+        for fact in comparison["evidence"]:
+            key = fact["field"]
+            outcome = fact["outcome"]
+            slot = evidence_counts.setdefault(key, {})
+            slot[outcome] = slot.get(outcome, 0) + 1
+    parsed["all_evidence_counts"] = evidence_counts
+    parsed["any_form_dose_match_evaluated"] = any(
+        {"form": "match", "dose": "match"}.items()
+        <= {e["field"]: e["outcome"] for e in cmp["evidence"]}.items()
+        for _, cmp in candidate_results
+    )
+    parsed["distinct_registration_numbers_evaluated"] = len({
+        row.registration_number for row, _ in candidate_results
+    })
     candidate_results.sort(key=_rank_candidate)
     visible_results = candidate_results[:MAX_CANDIDATES_PER_ITEM]
     best = {e["field"]: e["outcome"] for e in candidate_results[0][1]["evidence"]}
