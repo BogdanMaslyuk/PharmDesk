@@ -37,7 +37,10 @@
 </section>
 <section class="panel table-panel">
 <div class="panel-head"><div><h2>Кандидаты ГРЛС</h2>
-<p>Найдено {{item.candidate_total}} записей по полному торговому названию, показано {{candidates|length}}.</p></div></div>
+<p>Найдено {{item.candidate_total}} записей по полному торговому названию, показано {{candidates|length}}.
+{% if parsed.evaluated_count is defined %}Проверено {{parsed.evaluated_count}} из {{item.candidate_total}}; скрыто {{item.candidate_total - candidates|length}}.
+{% if not parsed.evaluation_complete %}<strong>Внимание: сработал предел вычислений, поиск не исчерпывающий.</strong>{% endif %}
+{% else %}Этот исторический запуск не сохранял число оценённых строк.{% endif %}</p></div></div>
 {% for entry in candidates %}
   <div class="matching-candidate">
     <div class="matching-candidate-head">
