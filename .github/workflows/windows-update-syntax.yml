@@ -136,3 +136,35 @@ jobs:
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\control-windows.ps1 -Action Stop
             if ($LASTEXITCODE -ne 0) { throw "Managed stop failed." }
           }
+
+      - name: Verify organizer Apply preserves all legacy folders in a sandbox
+        shell: powershell
+        timeout-minutes: 3
+        run: |
+          $desktop = Join-Path $env:RUNNER_TEMP "PharmDesk_workspace_apply"
+          $live = Join-Path $desktop "PharmDesk-git"
+          New-Item -ItemType Directory -Force -Path (Join-Path $live ".git") | Out-Null
+          New-Item -ItemType Directory -Force -Path (Join-Path $live "app") | Out-Null
+          [System.IO.File]::WriteAllText((Join-Path $live "app\database.py"),"# test marker")
+          foreach ($name in @("PharmDesk-main", "PharmDesk-git-before-fix")) {
+            $path=Join-Path $desktop $name
+            New-Item -ItemType Directory -Force -Path $path | Out-Null
+            [System.IO.File]::WriteAllText((Join-Path $path "keep.txt"),$name)
+          }
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\organize-desktop.ps1 -DesktopPath $desktop -Apply -Approval "ПЕРЕНЕСТИ"
+          if ($LASTEXITCODE -ne 0) { throw "Workspace transfer failed." }
+          $workspace=Join-Path $desktop "PharmDesk_Project"
+          if (-not (Test-Path (Join-Path $workspace "PharmDesk-git\app\database.py"))) {
+            throw "Canonical repository not moved."
+          }
+          if (-not (Test-Path (Join-Path $workspace "PharmDesk-Control.bat"))) {
+            throw "Root control launcher not generated."
+          }
+          foreach ($name in @("PharmDesk-main", "PharmDesk-git-before-fix")) {
+            if (-not (Test-Path (Join-Path $workspace "_Old_versions\$name\keep.txt"))) {
+              throw "Legacy data disappeared: $name"
+            }
+          }
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\organize-desktop.ps1 -DesktopPath $desktop -Apply -Approval "ПЕРЕНЕСТИ"
+          if ($LASTEXITCODE -ne 0) { throw "Idempotent workspace rerun failed." }
+          Write-Host "Workspace relocation preserved all folders and can be rechecked."
