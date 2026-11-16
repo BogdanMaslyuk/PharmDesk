@@ -144,6 +144,15 @@ def _analyze_one(db, run, item):
     # Incompleteness or family-name ambiguity must not be hidden by ranking.
     candidate_results.sort(key=_rank_candidate)
     visible_results = candidate_results[:MAX_CANDIDATES_PER_ITEM]
+    best = {e["field"]: e["outcome"] for e in candidate_results[0][1]["evidence"]}
+    if (best.get("form") == "match" and best.get("dose") == "match"
+            and best.get("release") != "conflict"):
+        parsed["best_evidence_group"] = "traits_match"
+    elif any(best.get(f) == "conflict" for f in ("name", "form", "dose", "release")):
+        parsed["best_evidence_group"] = "conflict"
+    else:
+        parsed["best_evidence_group"] = "insufficient"
+    current.parsed_json = json.dumps(parsed, ensure_ascii=False)
     strong = (not truncated_evaluation and total == 1
               and candidate_results[0][1]["category"] == "strong")
     current.category = "strong" if strong else "ambiguous"
