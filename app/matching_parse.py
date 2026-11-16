@@ -25,6 +25,8 @@ FORM_PATTERNS = (
     ("суппозитории", r"\b(?:супп(?:озитории)?|свеч[иа])\b"),
     ("порошок", r"\b(?:пор(?:ошок|ошка)?|порошок)\b"),
     ("гранулы", r"\bгранул(?:ы|а)?\b"),
+    ("драже", r"\bдраже\b"),
+    ("паста", r"\bпаст(?:а|ы)\b"),
 )
 FORMS = tuple((name, re.compile(regex, re.I)) for name, regex in FORM_PATTERNS)
 
@@ -98,10 +100,11 @@ def package_description(raw):
     return ", ".join(dict.fromkeys(parts))
 
 
-def stock_attributes(name):
+def stock_attributes(name, *, trade_override=None):
+    trade = trade_name_from_stock(name) if trade_override is None else trade_override
     return {
-        "trade": trade_name_from_stock(name),
-        "trade_key": normalize(trade_name_from_stock(name)),
+        "trade": trade,
+        "trade_key": normalize(trade),
         "forms": extract_forms(name),
         "doses": extract_doses(name)[0],
         "dose_uncertain": extract_doses(name)[1],
