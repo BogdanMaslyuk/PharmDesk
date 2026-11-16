@@ -18,6 +18,7 @@ from starlette.requests import Request
 from .database import get_db
 from .manage import _check_csrf, _csrf
 from .matching_worker import ALGORITHM_VERSION, inventory_digest, run_matching, stock_hash
+from .matching_audit import matching_audit
 from .models import (
     GrlsImportBatch, GrlsImportRow, MatchingCandidate, MatchingDecision,
     MatchingEvidence, MatchingItem, MatchingRun, Medicine, StockItem,
@@ -130,6 +131,18 @@ def matching_start(
         # One task per running job; no external server or new service required.
     background_tasks.add_task(run_matching, run.id)
     return RedirectResponse(f"/manage/matching/{run.id}", status_code=303)
+
+
+@router.get("/manage/matching/{run_id}/audit.json")
+def matching_audit_json(run_id: int, db: Session = Depends(get_db)):
+    _get_run(db, run_id)
+    return matching_audit(db, run_id)
+
+
+@router.get("/manage/matching/{run_id}/audit", response_class=HTMLResponse)
+def matching_audit_page(run_id: int, request: Request, db: Session = Depends(get_db)):
+    run = _get_run(db, run_id)
+    return _page(request, "matching_audit.html", run=run, audit=matching_audit(db, run_id))
 
 
 @router.get("/manage/matching/{run_id}/status")
