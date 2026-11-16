@@ -256,6 +256,38 @@ def test_changed_stock_invalidates_cached_run_and_was_not_mutated(env):
     assert db.scalar(select(func.count(StockItem.id))) == 4
 
 
+
+def test_filter_manufacturer_and_review_state(env):
+    client, db, batch, csrf = env
+    start(client, batch, csrf)
+    run = db.scalar(select(MatchingRun))
+    base = f"/manage/matching/{run.id}"
+    by_maker = client.get(base, params={"manufacturer":"Завод Б"})
+    assert by_maker.status_code == 200
+    assert "Акридерм ГК" in by_maker.text
+    assert "Тестоформ" not in by_maker.text
+    not_reviewed = client.get(base, params={"review":"unreviewed"})
+    assert "Акридерм ГК" in not_reviewed.text
+    candidate = db.scalar(select(MatchingCandidate).join(MatchingItem).where(
+        MatchingItem.article_code == "GK"
+    ))
+    response = client.post(f"{base}/item/{candidate.item_id}/decision", data={
+        "csrf_token": csrf,
+        "candidate_id": candidate.id,
+        "action": "deferred",
+        "comment": "Будет сверено с упаковкой",
+    }, follow_redirects=False)
+    assert response.status_code == 303
+    filtered = client.get(base, params={"review":"deferred"})
+    assert filtered.status_code == 200
+    assert "Акридерм ГК" in filtered.text
+    assert "Тестоформ" not in filtered.text
+    unreviewed = client.get(base, params={"review":"unreviewed"})
+    assert "Акридерм ГК" not in unreviewed.text
+    reviewed = client.get(base, params={"review":"reviewed"})
+    assert "Акридерм ГК" in reviewed.text
+
+
 def test_running_job_blocks_concurrent_duplicate_launch(env):
     client, db, batch, csrf = env
     run = MatchingRun(batch_id=batch.id, input_digest="a"*64,
