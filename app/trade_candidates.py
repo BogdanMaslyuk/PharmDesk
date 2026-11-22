@@ -83,6 +83,24 @@ def trade_name_from_snapshot(inventory_name, known_keys):
     return str(inventory_name or "").strip()
 
 
+def resolve_stock_trade_name(db, batch_id, inventory_name):
+    """Shared, conservative title resolver for bulk analysis and detail cards.
+
+    Query only candidate complete-title prefixes present in the selected snapshot.
+    An unrecognized suffix is NEVER silently dropped.
+    """
+    words = _WORD.findall(str(inventory_name or "").casefold().replace("ё", "е"))
+    phrases = [" ".join(words[:i]) for i in range(1, min(len(words), 12) + 1)]
+    keys = {normalize(phrase) for phrase in phrases if len(normalize(phrase)) >= 3}
+    if not batch_id or not keys:
+        return str(inventory_name or "").strip()
+    known = set(db.scalars(select(GrlsImportRow.trade_key).where(
+        GrlsImportRow.batch_id == batch_id,
+        GrlsImportRow.trade_key.in_(keys),
+    ).distinct()).all())
+    return trade_name_from_snapshot(inventory_name, known)
+
+
 def source_candidates(db, batch_id, *, medicine_name, trade_name=None, limit=5):
     """Only identical full trade names: NEVER a shared first-word prefix.
 
@@ -92,7 +110,7 @@ def source_candidates(db, batch_id, *, medicine_name, trade_name=None, limit=5):
     """
     if not batch_id:
         return []
-    phrase = trade_name if trade_name is not None else trade_name_from_stock(medicine_name)
+    phrase = trade_name if trade_name is not None else resolve_stock_trade_name(db, batch_id, medicine_name)
     key = normalize(phrase)
     if len(key) < 3 or key.isdigit():
         return []
