@@ -143,8 +143,11 @@ def test_full_local_prepare_and_run_in_a_separate_checkout(tmp_path):
     from datetime import date
     from hashlib import sha256
     from sqlalchemy.orm import Session
+    from sqlalchemy import select
     from app.importer import import_rows
-    from app.models import GrlsImportBatch, GrlsImportRow, MatchingRun
+    from app.models import (
+        GrlsImportBatch, GrlsImportRow, MatchingRun, MatchingItem, StockItem, Medicine,
+    )
     from app.search import normalize
 
     project = tmp_path / "Desktop" / "PharmDesk_Project"
@@ -176,6 +179,18 @@ def test_full_local_prepare_and_run_in_a_separate_checkout(tmp_path):
             algorithm_version="0.4.5-conservative-1",
             state="done", total=1, processed=1, strong=0, ambiguous=0,
             not_found=1,
+        ))
+        db.commit()
+        legacy = db.scalar(select(MatchingRun).where(
+            MatchingRun.algorithm_version == "0.4.5-conservative-1"
+        ))
+        stock = db.scalar(select(StockItem))
+        db.add(MatchingItem(
+            run_id=legacy.id, stock_item_id=stock.id,
+            medicine_id=stock.medicine_id, drawer_number=8,
+            article_code="S-47", stock_name="Валз таб. 160 мг",
+            stock_fingerprint="0" * 64, parsed_json="{}",
+            category="none", candidate_total=0, reasons_json="[]",
         ))
         db.commit()
     engine.dispose()
@@ -214,3 +229,17 @@ def test_full_local_prepare_and_run_in_a_separate_checkout(tmp_path):
     assert report["evaluated_candidate_pairs"] == 1
     assert report["comparison_previous_run_id"] == 1
     assert (workspace / "reports" / "comparison_v045_v047.csv").is_file()
+    triage = subprocess.run(
+        [sys.executable, "-X", "utf8", "-m", "scripts.v047_review_triage",
+         "--source", str(source), "--workspace", str(workspace)],
+        cwd=checkout, env=env, capture_output=True, text=True, timeout=80,
+    )
+    assert triage.returncode == 0, f"{triage.stdout}\n{triage.stderr}"
+    summary = json.loads((workspace / "reports" / "quality_triage_v047.json")
+                         .read_text(encoding="utf-8"))
+    assert summary["items"] == 1
+    assert summary["counts"]["new"] == 1
+    assert summary["sample_size"] == 1
+    assert "Валз" not in json.dumps(summary, ensure_ascii=False)
+    assert (workspace / "reports" / "manual_review_priority_50.csv").is_file()
+    assert validation._sha256_file(source) == original_hash
