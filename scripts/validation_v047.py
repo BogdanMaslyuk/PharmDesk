@@ -163,7 +163,7 @@ def _json(path, data):
 def _settings(args):
     production = Path(args.source or (PRODUCTION_ROOT / "pharmdesk.sqlite3")).resolve()
     workspace = Path(args.workspace or WORKSPACE_ROOT).resolve()
-    assert_isolated(production, workspace)
+    assert_isolated(production, workspace, code_root=ROOT)
     return production, workspace
 
 
