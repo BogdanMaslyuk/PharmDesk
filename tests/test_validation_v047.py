@@ -90,3 +90,44 @@ def test_prepare_verified_backup_isolated(tmp_path, monkeypatch):
         validation._same_data(conn, validation._read_manifest(workspace)["baseline"])
     with pytest.raises(validation.ValidationError, match="Перезапись запрещена"):
         validation.prepare(args)
+
+
+def test_catalogue_suggestions_use_the_same_complete_title_rules(tmp_path):
+    from datetime import date
+    from sqlalchemy.orm import Session
+    from app.models import GrlsImportBatch, GrlsImportRow
+    from app.search import normalize
+    from app.trade_candidates import source_candidates, resolve_stock_trade_name
+
+    path = tmp_path / "synthetic.sqlite3"
+    engine = create_engine("sqlite:///" + path.as_posix())
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as db:
+            batch = GrlsImportBatch(
+                sha256="4" * 64, archive_name="synthetic.zip",
+                snapshot_on=date(2026, 11, 5), row_count=4,
+            )
+            db.add(batch)
+            db.flush()
+            for n, trade in enumerate(["Миг", "Миг 400", "Акридерм", "Акридерм ГК"], 1):
+                db.add(GrlsImportRow(
+                    batch_id=batch.id, source_workbook="synthetic.xlsx",
+                    source_row=n+1, status_from_filename="Действующий",
+                    registration_number=f"TEST-{n}", registration_key=f"test{n}",
+                    trade_name=trade, trade_key=normalize(trade),
+                    inn_raw="", release_forms_raw="таблетки 400 мг",
+                    certificate_holder="Учебный",
+                ))
+            db.commit()
+            mig = source_candidates(db, batch.id, medicine_name="Миг 400 таб. 400 мг №20")
+            assert [r.trade_name for r in mig] == ["Миг 400"]
+            gk = source_candidates(db, batch.id, medicine_name="Акридерм ГК крем 30 г")
+            assert [r.trade_name for r in gk] == ["Акридерм ГК"]
+            assert source_candidates(db, batch.id, medicine_name="Миг 800 таб. 800 мг") == []
+            assert source_candidates(db, batch.id, medicine_name="Акридерм СК крем") == []
+            assert normalize(resolve_stock_trade_name(
+                db, batch.id, "Миг 400 таб. 400 мг"
+            )) == normalize("Миг 400")
+    finally:
+        engine.dispose()
