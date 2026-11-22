@@ -125,6 +125,7 @@ def generate_triage(db, baseline, *, sample_size=50):
         else:
             group = "stable"
         counts[group] += 1
+        counts["category_" + curr["category"]] += 1
         if curr["candidate_total"] == 0:
             counts["no_candidates"] += 1
         if curr["candidate_total"] > 30:
