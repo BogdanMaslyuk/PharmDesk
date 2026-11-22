@@ -109,7 +109,7 @@ def _table_hash(conn, table, *, max_id=None):
 
 
 def _health(conn):
-    check = conn.execute("PRAGMA integrity_check").fetchall()
+    check = [tuple(row) for row in conn.execute("PRAGMA integrity_check").fetchall()]
     foreign = conn.execute("PRAGMA foreign_key_check").fetchall()
     if check != [("ok",)]:
         raise ValidationError("PRAGMA integrity_check не прошёл.")
