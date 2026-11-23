@@ -133,6 +133,11 @@ def test_catalogue_suggestions_use_the_same_complete_title_rules(tmp_path):
         engine.dispose()
 
 
+@pytest.mark.skipif(
+    __import__("app.matching_worker", fromlist=["ALGORITHM_VERSION"]).ALGORITHM_VERSION
+    != "0.4.7-evidence-1",
+    reason="Legacy v1 runner tested in parent branch; v2 has its own isolated integration test.",
+)
 def test_full_local_prepare_and_run_in_a_separate_checkout(tmp_path):
     """Integration: real subprocesses, synthetic pharmacy data, original untouched."""
     import os
