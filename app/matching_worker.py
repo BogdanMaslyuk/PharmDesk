@@ -20,7 +20,7 @@ from .models import (
 )
 from .search import normalize
 
-ALGORITHM_VERSION = "0.4.7-evidence-1"
+ALGORITHM_VERSION = "0.4.7-evidence-2"
 MAX_CANDIDATES_PER_ITEM = 30
 # Guard against unusually large title families. Do not claim full coverage if exceeded.
 MAX_EVALUATED_PER_ITEM = 2000

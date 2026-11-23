@@ -3,9 +3,11 @@ on:
   push:
     branches:
       - feature/v047-validation-safety
+      - feature/v047-p3-dose-evidence-audit
   pull_request:
     branches:
       - feature/v047-matching-quality
+      - feature/v047-validation-safety
 permissions:
   contents: read
 jobs:

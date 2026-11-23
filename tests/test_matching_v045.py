@@ -103,7 +103,9 @@ def test_form_normalization_never_conflates_creams_ointments_or_modified_release
     source = source_attributes("таблетки 20 мг")
     cmp = evaluate(stock, source, exact_trade=True, source_status="Действующий")
     assert cmp["category"] == "ambiguous"
-    assert next(f for f in cmp["evidence"] if f["field"] == "release")["outcome"] == "conflict"
+    # A missing release label in the source is unknown, not proof of
+    # immediate release. The candidate nevertheless cannot be "strong".
+    assert next(f for f in cmp["evidence"] if f["field"] == "release")["outcome"] == "unknown"
     assert extract_forms("таблетки; крем") == ["крем", "таблетки"]
 
 
