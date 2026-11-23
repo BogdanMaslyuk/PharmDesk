@@ -3,8 +3,9 @@
 Run after validation_v047 prepare/run:
   python -m scripts.v047_review_triage
 
-Outputs (local/private): reports/quality_triage_v047.json and
-reports/manual_review_priority_50.csv.
+Outputs (local/private, never overwrite previous review files):
+reports/quality_triage_v047_v2.json and
+reports/manual_review_critical_50_v2.csv.
 """
 import argparse
 import csv
@@ -22,12 +23,13 @@ from .validation_v047 import (
 )
 
 GROUPS = (
+    ("critical", 20, "Противоречие формы, дозы или высвобождения у первого кандидата"),
     ("lost", 2, "В версии 0.4.7 исчезли кандидаты"),
-    ("new", 10, "Появились кандидаты после исправления названия"),
-    ("changed", 12, "Изменился лучший кандидат"),
-    ("many", 10, "Более 30 регистрационных кандидатов"),
-    ("none", 8, "Кандидаты отсутствуют"),
-    ("stable", 8, "Контрольные позиции без смены лидера"),
+    ("new", 8, "Появились кандидаты после исправления названия"),
+    ("changed", 8, "Изменился лучший кандидат"),
+    ("many", 6, "Более 30 регистрационных кандидатов"),
+    ("none", 4, "Кандидаты отсутствуют"),
+    ("stable", 2, "Контрольные позиции без смены лидера"),
 )
 
 
@@ -78,6 +80,39 @@ def _evidence(db, candidates):
 def _stable_sort_key(row):
     return (hashlib.sha256(str(row["stock_id"]).encode("ascii")).hexdigest(),
             row["stock_id"])
+
+
+def select_priority_review(records, *, sample_size=50):
+    """Deterministic, nonrepresentative 50-row safety-first selection."""
+    selected, chosen = [], set()
+    for group, quota, _ in GROUPS:
+        if group == "critical":
+            eligible = [r for r in records if r["critical"]]
+        elif group == "many":
+            eligible = [r for r in records if r["candidate_total"] > 30]
+        elif group == "none":
+            eligible = [r for r in records if r["candidate_total"] == 0]
+        else:
+            eligible = [r for r in records if r["group"] == group]
+        eligible.sort(key=_stable_sort_key)
+        taken = 0
+        for record in eligible:
+            if len(selected) >= sample_size or taken >= quota:
+                break
+            if record["stock_id"] in chosen:
+                continue
+            selected.append((group, record))
+            chosen.add(record["stock_id"])
+            taken += 1
+    for record in sorted(records, key=_stable_sort_key):
+        if len(selected) >= sample_size:
+            break
+        if record["stock_id"] not in chosen:
+            selected.append(("fill", record))
+            chosen.add(record["stock_id"])
+    if len(selected) != min(sample_size, len(records)):
+        raise ValidationError("Не удалось сформировать уникальную выборку.")
+    return selected
 
 
 def generate_triage(db, baseline, *, sample_size=50):
@@ -162,35 +197,15 @@ def generate_triage(db, baseline, *, sample_size=50):
             "dose": states.get("dose", ""),
             "release": states.get("release", ""),
             "package": states.get("package", ""),
+            "critical": any(states.get(field) == "conflict"
+                            for field in ("form", "dose", "release")),
         })
 
-    selected = []
-    chosen = set()
-    for group, quota, _ in GROUPS:
-        if group == "many":
-            eligible = [r for r in records if r["candidate_total"] > 30]
-        elif group == "none":
-            eligible = [r for r in records if r["candidate_total"] == 0]
-        else:
-            eligible = [r for r in records if r["group"] == group]
-        eligible.sort(key=_stable_sort_key)
-        taken = 0
-        for record in eligible:
-            if record["stock_id"] in chosen:
-                continue
-            selected.append((group, record))
-            chosen.add(record["stock_id"])
-            taken += 1
-            if taken >= quota or len(selected) >= sample_size:
-                break
-    for record in sorted(records, key=_stable_sort_key):
-        if len(selected) >= sample_size:
-            break
-        if record["stock_id"] not in chosen:
-            selected.append(("fill", record))
-            chosen.add(record["stock_id"])
-    if len(selected) != min(sample_size, len(records)):
-        raise ValidationError("Не удалось сформировать уникальную выборку.")
+    selected = select_priority_review(records, sample_size=sample_size)
+    critical_selected = sum(bool(r["critical"]) for _, r in selected)
+    # For this historical dataset 14 critical cases can all fit in 50.
+    # If there are more than the bounded priority quota, report the gap.
+    critical_total = counts["best_critical_conflict"]
 
     summary = {
         "version": 1,
@@ -200,6 +215,10 @@ def generate_triage(db, baseline, *, sample_size=50):
         "counts": dict(counts),
         "best_candidate_evidence": {k: dict(v) for k,v in best_fields.items()},
         "sample_size": len(selected),
+        "critical_selected": critical_selected,
+        "critical_total": critical_total,
+        "critical_unselected": critical_total - critical_selected,
+        "priority_version": 2,
         "sample_categories": dict(Counter(group for group,_ in selected)),
         "sampling": "Целевая первичная выборка, не репрезентативна для оценки точности.",
         "data_scope": "Агрегаты; исходные товарные названия и коды в JSON не включены.",
@@ -256,14 +275,23 @@ def run(args):
         _same_data(conn, manifest["baseline"])
         summary, sample = generate_triage(conn, manifest["baseline"])
     report_dir = workspace / "reports"
-    _json(report_dir / "quality_triage_v047.json", summary)
-    export_review(report_dir / "manual_review_priority_50.csv", sample)
+    summary_path = report_dir / "quality_triage_v047_v2.json"
+    review_path = report_dir / "manual_review_critical_50_v2.csv"
+    if summary_path.exists() or review_path.exists():
+        raise ValidationError(
+            "Файлы второй выборки уже существуют; чтобы не потерять ручные "
+            "решения, их автоматическая перезапись запрещена."
+        )
+    _json(summary_path, summary)
+    export_review(review_path, sample)
     print("Диагностика первой очереди завершена.")
     print("Товаров:", summary["items"])
     print("Группы изменений:", summary["counts"])
     print("Выборка для ручной проверки:", summary["sample_size"])
-    print("Агрегированный отчёт:", report_dir / "quality_triage_v047.json")
-    print("Локальная очередь:", report_dir / "manual_review_priority_50.csv")
+    print("Критические случаи в выборке:",
+          summary["critical_selected"], "из", summary["critical_total"])
+    print("Агрегированный отчёт:", summary_path)
+    print("Локальная очередь:", review_path)
     print("Исходная и тестовая SQLite не изменялись.")
 
 
