@@ -235,11 +235,35 @@ def test_full_local_prepare_and_run_in_a_separate_checkout(tmp_path):
         cwd=checkout, env=env, capture_output=True, text=True, timeout=80,
     )
     assert triage.returncode == 0, f"{triage.stdout}\n{triage.stderr}"
-    summary = json.loads((workspace / "reports" / "quality_triage_v047.json")
+    summary = json.loads((workspace / "reports" / "quality_triage_v047_v2.json")
                          .read_text(encoding="utf-8"))
     assert summary["items"] == 1
     assert summary["counts"]["new"] == 1
     assert summary["sample_size"] == 1
     assert "Валз" not in json.dumps(summary, ensure_ascii=False)
-    assert (workspace / "reports" / "manual_review_priority_50.csv").is_file()
+    assert (workspace / "reports" / "manual_review_critical_50_v2.csv").is_file()
     assert validation._sha256_file(source) == original_hash
+
+
+
+def test_safety_first_selection_prioritizes_critical_and_lost():
+    from scripts.v047_review_triage import select_priority_review
+    records = []
+    for i in range(70):
+        records.append({
+            "stock_id": i + 1,
+            "critical": i < 14,
+            "group": "lost" if 14 <= i < 16 else (
+                "new" if 16 <= i < 25 else
+                "changed" if i < 48 else "stable"
+            ),
+            "candidate_total": 0 if 14 <= i < 16 else 42 if i >= 25 else 3,
+        })
+    selected = select_priority_review(records, sample_size=50)
+    ids = {x["stock_id"] for _, x in selected}
+    assert len(selected) == len(ids) == 50
+    assert {r["stock_id"] for r in records[:14]} <= ids
+    assert {15, 16} <= ids
+    assert sum(category == "critical" for category, _ in selected) == 14
+    assert sum(category == "lost" for category, _ in selected) == 2
+    assert selected == select_priority_review(records, sample_size=50)
