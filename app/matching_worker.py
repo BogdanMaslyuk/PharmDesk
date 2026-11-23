@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from .database import SessionLocal
 from .matching_parse import evaluate, source_attributes, stock_attributes
-from .trade_candidates import trade_name_from_snapshot
+from .trade_candidates import resolve_stock_trade_name
 from .models import (
     GrlsImportRow, MatchingCandidate, MatchingEvidence,
     MatchingItem, MatchingRun, StockItem, Medicine,
@@ -64,21 +64,6 @@ def _matching_rows(db, batch_id, trade_key):
     return total, rows[:MAX_EVALUATED_PER_ITEM], True
 
 
-def _resolve_trade(db, batch_id, inventory_name):
-    """Resolve exact title from snapshot only at a safe form/package boundary."""
-    import re
-    words = re.findall(r"[а-яёa-z0-9]+", str(inventory_name or "").casefold().replace("ё", "е"))
-    phrases = [" ".join(words[:i]) for i in range(1, min(len(words), 12) + 1)]
-    keys = {normalize(p) for p in phrases if len(normalize(p)) >= 3}
-    if not keys:
-        return inventory_name
-    known = set(db.scalars(select(GrlsImportRow.trade_key).where(
-        GrlsImportRow.batch_id == batch_id,
-        GrlsImportRow.trade_key.in_(keys),
-    ).distinct()).all())
-    return trade_name_from_snapshot(inventory_name, known)
-
-
 def _rank_candidate(pair):
     """Evidence-only ranking; no estimated medical probability or verification."""
     row, comp = pair
@@ -99,7 +84,7 @@ def _rank_candidate(pair):
 
 
 def _analyze_one(db, run, item):
-    resolved_trade = _resolve_trade(db, run.batch_id, item.medicine.name)
+    resolved_trade = resolve_stock_trade_name(db, run.batch_id, item.medicine.name)
     parsed = stock_attributes(item.medicine.name, trade_override=resolved_trade)
     parsed["manufacturer"] = item.medicine.manufacturer or ""
     current = MatchingItem(
