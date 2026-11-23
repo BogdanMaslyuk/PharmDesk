@@ -243,9 +243,14 @@ def evaluate(stock, source, *, exact_trade, source_status, total_same_name=1):
         "Категория относится только к дате выгрузки и не удостоверяет текущий статус.")
     # Even a strong candidate is unverified and must be manually reviewed.
     eligible_status = source_status in {"Действующий", "Выдано по правилам ЕАЭС"}
+    # Do not upgrade to "strong" when the stock explicitly requires
+    # modified release but the registry row does not describe release at all.
+    # Unknown != conflicting, but it is not affirmative corroboration.
+    release_sufficient = (release_state == "match" or
+                          stock_release == source_release == "unknown")
     strong = (
         exact_trade and form_state == "match"
-        and dose_state == "match" and release_state != "conflict"
+        and dose_state == "match" and release_sufficient
         and eligible_status and total_same_name == 1
     )
     reasons = []
