@@ -43,6 +43,19 @@ _STANDALONE_PLUS = re.compile(
 _PACK_RE = re.compile(r"(?:№|N\s*)\s*(\d{1,4})", re.I)
 _PACKAGE_GRAMS = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*(г|мл)\b", re.I)
 
+# Whitespace inside a decimal comma is common in stock exports ("69, 19").
+# It is repaired for display but never treated as a certain dose.
+_SPACED_DECIMAL = re.compile(r"(\d+),\s+(\d+)(?=\s*(?:мг|мкг|мег|%))", re.I)
+_TRUNCATED_CONCENTRATION = re.compile(r"(?:мг|мкг)\s*/\s*(?:$|[.,;])", re.I)
+_MODIFIED_RELEASE = re.compile(
+    r"\b(?:пролонг\w*|замедлен\w*|модиф\w*|ретард|мв)\b", re.I
+)
+_EXPLICIT_STANDARD_RELEASE = re.compile(
+    r"\b(?:немодифицир\w*|немодиф\w*|обычн\w*\s+высвобожд\w*|"
+    r"немедленн\w*\s+высвобожд\w*)\b", re.I
+)
+
+
 
 def _clean(text):
     return str(text or "").lower().replace("ё", "е").replace("\xa0", " ")
@@ -61,8 +74,10 @@ def extract_doses(raw):
     justify an automatic strong match.
     """
     text = _clean(raw)
+    spaced_decimal = bool(_SPACED_DECIMAL.search(text))
+    text = _SPACED_DECIMAL.sub(r"\1,\2", text)
     values = set()
-    ambiguous = False
+    ambiguous = spaced_decimal or bool(_TRUNCATED_CONCENTRATION.search(text))
     for match in _DOSE_RE.finditer(text):
         amount = match.group(1).replace(",", ".")
         unit = re.sub(r"\s+", "", match.group(2))
@@ -79,15 +94,43 @@ def extract_doses(raw):
         except InvalidOperation:
             ambiguous = True
             continue
+        # Exact unit conversion only: 1000 mcg = 1 mg. Never infer active
+        # substance, dose per tablet, or equivalence of percentages here.
+        if unit == "мкг":
+            decimal /= Decimal(1000)
+            unit = "мг"
+        elif unit == "мкг/мл":
+            decimal /= Decimal(1000)
+            unit = "мг/мл"
         values.add((format(decimal.normalize(), "f"), unit))
     if _STANDALONE_PLUS.search(text):
         ambiguous = True
     return sorted(values), ambiguous
 
 
-def is_modified_release(raw):
+def release_kind(raw):
+    """Explicit evidence only; absence of a label is NOT standard release."""
     text = _clean(raw)
-    return bool(re.search(r"\b(?:пролонг\w*|замедлен\w*|модифицир\w*|ретард)\b", text))
+    if _EXPLICIT_STANDARD_RELEASE.search(text):
+        return "standard"
+    if _MODIFIED_RELEASE.search(text):
+        return "modified"
+    return "unknown"
+
+
+def is_modified_release(raw):
+    return release_kind(raw) == "modified"
+
+
+def _possible_percent_mass_volume(a, b):
+    """Flag, never assert, potential percent vs mg/mL strength equivalence."""
+    if len(a) != 1 or len(b) != 1:
+        return False
+    left, right = a[0], b[0]
+    for percent, strength in ((left, right), (right, left)):
+        if percent[1] == "%" and strength[1] == "мг/мл":
+            return Decimal(percent[0]) * Decimal(10) == Decimal(strength[0])
+    return False
 
 
 def package_description(raw):
@@ -109,6 +152,7 @@ def stock_attributes(name, *, trade_override=None):
         "doses": extract_doses(name)[0],
         "dose_uncertain": extract_doses(name)[1],
         "modified_release": is_modified_release(name),
+        "release_kind": release_kind(name),
         "package": package_description(name),
     }
 
@@ -124,6 +168,7 @@ def source_attributes(raw):
         "doses": doses,
         "dose_uncertain": uncertain,
         "modified_release": is_modified_release(raw),
+        "release_kind": release_kind(raw),
         "package": package_description(raw),
     }
 
@@ -155,21 +200,33 @@ def evaluate(stock, source, *, exact_trade, source_status, total_same_name=1):
         dose_state = "unknown"
     elif da == db:
         dose_state = "match"
+    elif _possible_percent_mass_volume(da, db):
+        # Percent can express different concentration bases. Even an exact
+        # numeric correspondence must NOT establish drug identity.
+        dose_state = "ambiguous"
     elif set(map(tuple, da)) & set(map(tuple, db)):
         dose_state = "ambiguous"
     else:
         dose_state = "conflict"
     add("dose", dose_state, " + ".join(" ".join(d) for d in da),
         " + ".join(" ".join(d) for d in db),
-        "Дозы сравниваются как десятичные значения с единицами; неполные комбинации требуют сверки.")
-    release_state = "conflict" if (
-        bool(stock["modified_release"]) != bool(source["modified_release"])
-        and "таблетки" in a and "таблетки" in b
-    ) else "match" if "таблетки" in a and "таблетки" in b else "unknown"
+        "мкг переведены в мг без округления; проценты и мг/мл, а также неполные записи требуют ручной сверки.")
+    stock_release = stock.get("release_kind", "modified" if stock["modified_release"] else "unknown")
+    source_release = source.get("release_kind", "modified" if source["modified_release"] else "unknown")
+    if "таблетки" in a and "таблетки" in b:
+        if stock_release == source_release and stock_release != "unknown":
+            release_state = "match"
+        elif "unknown" in (stock_release, source_release):
+            release_state = "unknown"
+        else:
+            release_state = "conflict"
+    else:
+        release_state = "unknown"
+    labels = {"modified": "Модифицированное", "standard": "Немодифицированное",
+              "unknown": "Не указано"}
     add("release", release_state,
-        "Модифицированное" if stock["modified_release"] else "Не указано",
-        "Модифицированное" if source["modified_release"] else "Не указано",
-        "Тип высвобождения нельзя автоматически считать одинаковым.")
+        labels[stock_release], labels[source_release],
+        "Отсутствие указания о высвобождении не означает обычное высвобождение.")
     stock_packs = {x.strip() for x in stock["package"].split(",") if x.strip()}
     source_packs = {x.strip() for x in source["package"].split(",") if x.strip()}
     pack_state = (
