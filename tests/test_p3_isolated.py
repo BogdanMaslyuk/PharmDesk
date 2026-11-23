@@ -55,6 +55,11 @@ def test_p3_comparison_preserves_v1_history_and_original_database(tmp_path):
         db.flush()
         stock = db.scalar(select(StockItem))
         first = db.scalar(select(MatchingRun))
+        db.add(MatchingRun(
+            batch_id=batch.id, input_digest="0" * 64,
+            algorithm_version="0.4.5-conservative-1",
+            state="done", total=1, processed=1, not_found=1,
+        ))
         db.add(MatchingItem(
             run_id=first.id, stock_item_id=stock.id, medicine_id=stock.medicine_id,
             drawer_number=1, article_code="DEMO-P3",
@@ -113,7 +118,18 @@ def test_p3_comparison_preserves_v1_history_and_original_database(tmp_path):
     assert output["new_statuses"]["not_found"] == 0
     assert (workspace / "reports" / "p3_candidate_deltas_v1_v2.csv").is_file()
 
+    source_export = call("scripts.v047_source_evidence")
+    assert source_export.returncode == 0, (
+        f"{source_export.stdout}\n{source_export.stderr}"
+    )
+    source_report = json.loads(
+        (workspace / "reports" / "p3_source_evidence_16.json")
+        .read_text(encoding="utf-8")
+    )
+    assert source_report["cases_count"] == 0  # Synthetic sample has no contradictions.
+    assert _sha256_file(db_path) == original_hash
+
     repeated = call("scripts.v047_p3_compare")
     assert repeated.returncode != 0
     with _open_ro(target) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM matching_runs").fetchone()[0] == 2
+        assert conn.execute("SELECT COUNT(*) FROM matching_runs").fetchone()[0] == 3
