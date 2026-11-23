@@ -150,3 +150,78 @@ def test_old_run_audit_does_not_claim_all_evaluated():
             assert result["evidence_scope"] == "displayed_only"
     finally:
         engine.dispose()
+
+def _field(result, name):
+    return next(item["outcome"] for item in result["evidence"] if item["field"] == name)
+
+
+def test_p3_exact_mcg_to_mg_conversions():
+    from app.matching_parse import extract_doses
+    assert extract_doses("супп. 500 мкг")[0] == [("0.5", "мг")]
+    assert extract_doses("табл. 750 мкг")[0] == [("0.75", "мг")]
+    assert extract_doses("табл. 400 мкг")[0] == [("0.4", "мг")]
+    assert extract_doses("0,5 мг")[0] == [("0.5", "мг")]
+    for stock, registry in (
+        ("Супп. 500 мкг", "супп. 0,5 мг"),
+        ("табл. 750 мкг", "табл. 0,75 мг"),
+        ("табл. 400 мкг", "табл. 0,4 мг"),
+    ):
+        result = evaluate(
+            stock_attributes("Тест " + stock),
+            source_attributes(registry),
+            exact_trade=True, source_status="Действующий",
+        )
+        assert _field(result, "dose") == "match"
+
+
+def test_p3_spaced_decimal_is_uncertain_not_a_false_conflict():
+    stock = stock_attributes("Симулятор сусп. 69, 19 мг/мл")
+    assert stock["dose_uncertain"] is True
+    assert ("69.19", "мг/мл") in stock["doses"]
+    comp = evaluate(stock, source_attributes("суспензия 69,19 мг/мл"),
+                    exact_trade=True, source_status="Действующий")
+    assert _field(comp, "dose") == "ambiguous"
+
+
+def test_p3_truncated_concentration_does_not_get_a_full_match():
+    stock = stock_attributes("Модель капли 7,5мг/")
+    assert stock["dose_uncertain"] is True
+    comp = evaluate(stock, source_attributes("капли 7,5 мг/мл"),
+                    exact_trade=True, source_status="Действующий")
+    assert _field(comp, "dose") == "ambiguous"
+
+
+def test_p3_percentage_vs_mg_ml_remains_unverified():
+    for stock, reg in (
+        ("раствор 5%", "раствор 50 мг/мл"),
+        ("капли 0,75%", "капли 7,5 мг/мл"),
+    ):
+        comp = evaluate(stock_attributes("Тест " + stock), source_attributes(reg),
+                        exact_trade=True, source_status="Действующий")
+        assert _field(comp, "dose") == "ambiguous"
+    different = evaluate(stock_attributes("Тест раствор 5%"),
+                         source_attributes("раствор 10 мг/мл"),
+                         exact_trade=True, source_status="Действующий")
+    assert _field(different, "dose") != "match"
+
+
+def test_p3_release_short_forms_and_absence_of_evidence():
+    from app.matching_parse import release_kind
+    for raw in ("таб. с модиф. высв. 60 мг", "таб. с модифицированным высвобождением",
+                "таблетки МВ 30 мг", "таблетки с пролонг. высв."):
+        assert release_kind(raw) == "modified"
+    a = stock_attributes("Модель таб. с модиф. высв. 60 мг")
+    assert _field(evaluate(a, source_attributes("таблетки с модифицированным высвобождением, 60 мг"),
+                           exact_trade=True, source_status="Действующий"), "release") == "match"
+    assert _field(evaluate(a, source_attributes("таблетки 60 мг"),
+                           exact_trade=True, source_status="Действующий"), "release") == "unknown"
+    assert _field(evaluate(a, source_attributes("таблетки с немодифицированным высвобождением 60 мг"),
+                           exact_trade=True, source_status="Действующий"), "release") == "conflict"
+
+
+def test_p3_multiple_registry_strengths_still_ambiguous():
+    stock = stock_attributes("Учебный препарат таб. 60 мг")
+    source = source_attributes("таблетки с модифицированным высвобождением 30 мг или 60 мг")
+    assert source["dose_uncertain"] is True
+    assert _field(evaluate(stock, source, exact_trade=True,
+                           source_status="Действующий"), "dose") == "ambiguous"
