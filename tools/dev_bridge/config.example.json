@@ -1,0 +1,26 @@
+{
+  "repo": "BogdanMaslyuk/PharmDesk",
+  "owner": "BogdanMaslyuk",
+  "runtime_root": "C:\\Users\\YOUR_USER\\Desktop\\PharmDesk_Project\\_DevBridge",
+  "code_checkout": "C:\\Users\\YOUR_USER\\Desktop\\PharmDesk_Project\\PharmDesk-DevBridge",
+  "workspaces_root": "workspaces",
+  "state_root": "state",
+  "logs_root": "logs",
+  "seed_root": "seed",
+  "workspace_source": "C:\\Users\\YOUR_USER\\Desktop\\PharmDesk_Project\\_DevBridge\\seed\\synthetic-repo",
+  "base_ref": "main",
+  "git_command": "C:\\Program Files\\Git\\cmd\\git.exe",
+  "gh_command": "C:\\Program Files\\GitHub CLI\\gh.exe",
+  "codex_command": "C:\\Users\\YOUR_USER\\Desktop\\PharmDesk_Project\\_DevBridge\\codex-cli\\node_modules\\.bin\\codex.cmd",
+  "codex_home": "C:\\Users\\YOUR_USER\\Desktop\\PharmDesk_Project\\_DevBridge\\codex-home",
+  "codex_profile": "bridge-workspace",
+  "runner_adapter": "mock",
+  "max_runtime_seconds": 300,
+  "max_log_bytes": 1048576,
+  "max_issue_chars": 50000,
+  "protected_roots": [
+    "C:\\Users\\YOUR_USER\\Desktop\\PharmDesk_Project\\PharmDesk-git",
+    "C:\\Users\\YOUR_USER\\Desktop\\PharmDesk_Project\\_Validation_047",
+    "C:\\tmp\\PharmDesk_P3_REPLACE_WITH_EXACT_PATH"
+  ]
+}
