@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "task_status": {
+      "type": "string",
+      "enum": ["completed", "needs_approval", "failed"]
+    },
+    "tests": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["passed", "failed", "not_run"]
+        },
+        "passed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "skipped": {"type": "integer", "minimum": 0}
+      },
+      "required": ["status", "passed", "failed", "skipped"],
+      "additionalProperties": false
+    },
+    "limitation_codes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "approval_required",
+          "network_unavailable",
+          "tests_failed",
+          "tests_not_run",
+          "timeout",
+          "unknown_result"
+        ]
+      },
+      "maxItems": 10
+    }
+  },
+  "required": ["task_status", "tests", "limitation_codes"],
+  "additionalProperties": false
+}
